@@ -2,6 +2,16 @@
   command = "npm run check"
   publish = "webapp"
 
+[[redirects]]
+  from = "/openai/v1/*"
+  to = "/.netlify/functions/openai/v1/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/v1/*"
+  to = "/.netlify/functions/local-llm/v1/:splat"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

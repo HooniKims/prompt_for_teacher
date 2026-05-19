@@ -16,6 +16,14 @@ function localSetupMessage(detail = "") {
   return "로컬 AI와 연결하지 못했습니다. AI 프로그램이 켜져 있는지 확인해주세요.";
 }
 
+function openAiSetupMessage(detail = "") {
+  return "OpenAI 모델을 확인하지 못했습니다. 배포 환경의 API 키 설정을 확인해주세요.";
+}
+
+function setupMessageForEndpoint(endpoint, detail = "") {
+  return normalizeEndpoint(endpoint) === OPENAI_LLM_ENDPOINT ? openAiSetupMessage(detail) : localSetupMessage(detail);
+}
+
 async function readJson(response) {
   try {
     return await response.json();
@@ -26,7 +34,7 @@ async function readJson(response) {
 
 export async function listModels({ endpoint = DEFAULT_LLM_ENDPOINT, fetchImpl = globalThis.fetch } = {}) {
   if (typeof fetchImpl !== "function") {
-    return { ok: false, reason: "fetch_unavailable", models: [], message: localSetupMessage("fetch 사용 불가") };
+    return { ok: false, reason: "fetch_unavailable", models: [], message: setupMessageForEndpoint(endpoint, "fetch 사용 불가") };
   }
 
   const base = normalizeEndpoint(endpoint);
@@ -40,7 +48,7 @@ export async function listModels({ endpoint = DEFAULT_LLM_ENDPOINT, fetchImpl = 
         reason: "http_error",
         status: response.status,
         models: [],
-        message: localSetupMessage(`${response.status} ${response.statusText || ""}`.trim())
+        message: setupMessageForEndpoint(base, `${response.status} ${response.statusText || ""}`.trim())
       };
     }
 
@@ -49,12 +57,12 @@ export async function listModels({ endpoint = DEFAULT_LLM_ENDPOINT, fetchImpl = 
       : [];
 
     if (!models.length) {
-      return { ok: false, reason: "no_models", models: [], message: localSetupMessage("로드된 모델 없음") };
+      return { ok: false, reason: "no_models", models: [], message: setupMessageForEndpoint(base, "로드된 모델 없음") };
     }
 
     return { ok: true, models, endpoint: base };
   } catch (error) {
-    return { ok: false, reason: "network_error", models: [], message: localSetupMessage(readableError(error)) };
+    return { ok: false, reason: "network_error", models: [], message: setupMessageForEndpoint(base, readableError(error)) };
   }
 }
 
@@ -67,7 +75,7 @@ export async function chatCompletion({
   fetchImpl = globalThis.fetch
 } = {}) {
   if (typeof fetchImpl !== "function") {
-    return { ok: false, reason: "fetch_unavailable", content: "", message: localSetupMessage("fetch 사용 불가") };
+    return { ok: false, reason: "fetch_unavailable", content: "", message: setupMessageForEndpoint(endpoint, "fetch 사용 불가") };
   }
 
   const base = normalizeEndpoint(endpoint);
@@ -85,7 +93,7 @@ export async function chatCompletion({
         reason: "http_error",
         status: response.status,
         content: "",
-        message: localSetupMessage(`${response.status} ${response.statusText || ""}`.trim())
+        message: setupMessageForEndpoint(base, `${response.status} ${response.statusText || ""}`.trim())
       };
     }
 
@@ -111,7 +119,7 @@ export async function chatCompletion({
       raw: body
     };
   } catch (error) {
-    return { ok: false, reason: "network_error", content: "", message: localSetupMessage(readableError(error)) };
+    return { ok: false, reason: "network_error", content: "", message: setupMessageForEndpoint(base, readableError(error)) };
   }
 }
 

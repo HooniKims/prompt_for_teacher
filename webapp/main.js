@@ -521,6 +521,25 @@ function welcomeMessage() {
   return settings.memoryEnabled ? `${WELCOME_MESSAGE}\n\n이전에 만든 프롬프트를 참고하여 작업할 수 있습니다.` : WELCOME_MESSAGE;
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function chatCompletionWithRetry(request) {
+  const firstResult = await chatCompletion(request);
+  if (firstResult.ok || firstResult.reason === "empty_content") return firstResult;
+
+  await wait(800);
+  const secondResult = await chatCompletion(request);
+  return secondResult.ok ? { ...secondResult, retried: true } : secondResult;
+}
+
+function maxTokensForTask(task) {
+  const isLocalE2b = settings.llmProvider === "local" && /e2b/i.test(settings.llmModelId || "");
+  if (isLocalE2b) return task === "revision" ? 4096 : 3072;
+  return task === "revision" ? 8192 : 4096;
+}
+
 async function checkLocalLlm() {
   state = markLlmStatus(state, { status: "checking", message: "AI 연결을 확인하고 있습니다." });
   render();
@@ -584,11 +603,11 @@ async function requestNextQuestion() {
   render();
 
   const selectedMemory = selectMemoryItems(memoryStore.items, settings);
-  const result = await chatCompletion({
+  const result = await chatCompletionWithRetry({
     endpoint: settings.llmEndpoint,
     model: settings.llmModelId,
     messages: buildNextQuestionMessages({ seed: state.initialRequest, turns: state.conversationTurns, memoryItems: selectedMemory, guideMode: settings.guideMode }),
-    maxTokens: 4096
+    maxTokens: maxTokensForTask("question")
   });
 
   if (generation !== requestGeneration) return;
@@ -601,6 +620,11 @@ async function requestNextQuestion() {
   }
 
   const parsed = parsePlannerResponse(result.content);
+  if (!parsed.ok && result.truncated) {
+    await completeWithFinalPrompt(buildFinalPrompt(state, { memoryItems: selectedMemory }), "");
+    return;
+  }
+
   const value = parsed.ok ? parsed.value : parsed.fallback;
 
   if (value.kind === "final_prompt_ready") {
@@ -639,11 +663,11 @@ async function handleRevision(text) {
   state = setAwaitingAi(stateWithUserMessage, true);
   render();
 
-  const result = await chatCompletion({
+  const result = await chatCompletionWithRetry({
     endpoint: settings.llmEndpoint,
     model: settings.llmModelId,
     messages: buildRevisionMessages({ prompt: state.finalPrompt, revisionRequest: text, referenceNotes: state.referenceNotes }),
-    maxTokens: 8192
+    maxTokens: maxTokensForTask("revision")
   });
 
   if (generation !== requestGeneration) return;

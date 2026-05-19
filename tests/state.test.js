@@ -36,10 +36,10 @@ test("state helpers preserve a one-question-at-a-time flow", () => {
   assert.equal(answered.activeStepIndex, 0);
   assert.equal(advanced.activeStepIndex, 1);
   assert.equal(advanced.completed, false);
-  assert.equal(advanced.answers.output, "윈도우용 프로그램");
+  assert.equal(advanced.answers.output, "윈도우용 프로그램을 만들고 싶습니다.");
   assert.equal(advanced.answerMeta.output.id, "B");
   assert.equal(advanced.messages.at(-1).role, "user");
-  assert.equal(advanced.messages.at(-1).text, "B. 윈도우용 프로그램");
+  assert.equal(advanced.messages.at(-1).text, "B. 윈도우용 프로그램을 만들고 싶습니다.");
   assert.equal(greeted.messages.length, 1);
   assert.equal(initial.messages.length, 0);
 });

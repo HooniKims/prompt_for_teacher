@@ -137,6 +137,6 @@ test("final prompt view does not execute prompts or copy reference notes", () =>
 
 test("saved prompt revisions use the selected AI model", () => {
   assert.match(main, /async function handleRevision/);
-  assert.match(main, /chatCompletion\(\{[\s\S]*endpoint:\s*settings\.llmEndpoint[\s\S]*model:\s*settings\.llmModelId[\s\S]*buildRevisionMessages/s);
+  assert.match(main, /chatCompletionWithRetry\(\{[\s\S]*endpoint:\s*settings\.llmEndpoint[\s\S]*model:\s*settings\.llmModelId[\s\S]*buildRevisionMessages/s);
   assert.match(main, /AI 수정 답변을 받지 못해 기본 방식/);
 });

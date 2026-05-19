@@ -18,6 +18,7 @@ test("buildNextQuestionMessages frames a short seed as teacher-focused creation 
   assert.match(content, /앱|프로그램|자료/);
   assert.match(content, /모두 한국어로 작성/);
   assert.match(content, /한 번에 하나의 질문/);
+  assert.match(content, /존댓말 문장/);
   assert.match(content, /교사가 이해하기 쉬운 짧은 요약과 AI가 실행할 상세 프롬프트를 분리/);
   assert.match(content, /요구사항 정의서 수준으로 상세하게 작성/);
   assert.match(content, /개인정보보호를 지키기 위한 구현 계획/);
@@ -54,6 +55,7 @@ test("parsePlannerResponse accepts valid question JSON and limits quick options"
   assert.equal(parsed.ok, true);
   assert.equal(parsed.value.kind, "question");
   assert.deepEqual(parsed.value.suggestedOptions.map((option) => option.id), ["A", "B", "C", "D"]);
+  assert.ok(parsed.value.suggestedOptions.every((option) => /(요|니다|습니다|입니다|까요|주세요)[.!?]?$/.test(option.label)));
 });
 
 test("parsePlannerResponse returns recoverable fallback for invalid model output", () => {
@@ -71,6 +73,7 @@ test("quickOptionsForIntent keeps choices optional and teacher-focused", () => {
   assert.ok(options.some((option) => /윈도우용 프로그램/.test(option.label)));
   assert.ok(options.some((option) => /모바일 앱/.test(option.label)));
   assert.ok(options.every((option) => option.optional === true));
+  assert.ok(options.every((option) => /(요|니다|습니다|입니다|까요|주세요)[.!?]?$/.test(option.label)));
 });
 
 test("buildFinalPromptMessages keeps prompt and reference guidance separate", () => {

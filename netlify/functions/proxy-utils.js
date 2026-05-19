@@ -1,6 +1,6 @@
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, authorization",
+  "Access-Control-Allow-Headers": "content-type, authorization, x-api-key",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
 };
 
@@ -57,4 +57,3 @@ export async function responseFromFetch(upstream) {
     body: await upstream.text()
   };
 }
-

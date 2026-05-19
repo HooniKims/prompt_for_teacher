@@ -2,7 +2,7 @@ export const STORAGE_KEYS = {
   sessions: "teacherPromptGuide.sessions.v1",
   activeDraft: "teacherPromptGuide.activeDraft.v1",
   memory: "teacherPromptGuide.memory.v1",
-  settings: "teacherPromptGuide.settings.v1",
+  settings: "teacherPromptGuide.settings.v2",
   legacySessions: "teacherPromptGuideSessions"
 };
 

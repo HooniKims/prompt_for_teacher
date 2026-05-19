@@ -48,7 +48,7 @@ function send(response, status, body, headers = {}) {
 }
 
 function localLlmOrigin() {
-  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "http://lm.alluser.site:1234";
+  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "https://lm.alluser.site";
   return raw.trim().replace(/\/+$/g, "").replace(/\/v1$/i, "");
 }
 
@@ -97,22 +97,42 @@ async function proxyLlm(request, response) {
   const incomingUrl = new URL(request.url, `http://${request.headers.host || `${HOST}:${PORT}`}`);
   const llmOrigin = localLlmOrigin();
   const upstreamUrl = new URL(`${llmOrigin}${incomingUrl.pathname}${incomingUrl.search}`);
-  const headers = { ...request.headers, host: upstreamUrl.host, origin: llmOrigin };
-  delete headers.connection;
+  const headers = {
+    "content-type": request.headers["content-type"] || "application/json",
+    host: upstreamUrl.host,
+    origin: llmOrigin,
+    referer: `${llmOrigin}/`
+  };
   const lmStudioApiKey = process.env.LMSTUDIO_API_KEY?.trim();
-  if (lmStudioApiKey) headers.authorization = `Bearer ${lmStudioApiKey}`;
+  if (lmStudioApiKey) headers["x-api-key"] = lmStudioApiKey;
 
   try {
+    let body = request.method === "GET" || request.method === "HEAD" ? undefined : request;
+
+    if (request.method === "POST" && incomingUrl.pathname === "/v1/chat/completions") {
+      const rawBody = await readRequestBody(request);
+      try {
+        const payload = JSON.parse(rawBody.toString("utf8"));
+        if (payload && typeof payload === "object") {
+          payload.reasoning_effort = payload.reasoning_effort || "none";
+          payload.stream = false;
+        }
+        body = JSON.stringify(payload);
+      } catch {
+        body = rawBody;
+      }
+    }
+
     const upstream = await fetch(upstreamUrl, {
       method: request.method,
       headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request,
+      body,
       duplex: "half"
     });
 
     response.writeHead(upstream.status, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "content-type, authorization",
+      "Access-Control-Allow-Headers": "content-type, authorization, x-api-key",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Content-Type": upstream.headers.get("content-type") || "application/json; charset=utf-8"
     });
@@ -183,7 +203,7 @@ async function proxyOpenAi(request, response) {
 
     response.writeHead(upstream.status, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "content-type, authorization",
+      "Access-Control-Allow-Headers": "content-type, authorization, x-api-key",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Content-Type": upstream.headers.get("content-type") || "application/json; charset=utf-8"
     });
@@ -200,7 +220,7 @@ const server = createServer((request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "content-type, authorization",
+      "Access-Control-Allow-Headers": "content-type, authorization, x-api-key",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
     });
     response.end();

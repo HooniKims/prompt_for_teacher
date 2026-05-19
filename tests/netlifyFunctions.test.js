@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { upstreamPath } from "../netlify/functions/proxy-utils.js";
 import { handler as openAiHandler } from "../netlify/functions/openai.js";
-import { localLlmOrigin } from "../netlify/functions/local-llm.js";
+import { localLlmBody, localLlmHeaders, localLlmOrigin } from "../netlify/functions/local-llm.js";
 
 test("Netlify proxy path keeps v1 routes after redirects", () => {
   assert.equal(
@@ -61,4 +61,42 @@ test("LM Studio Netlify function accepts common environment variable names", () 
     if (originalLocalOrigin === undefined) delete process.env.LOCAL_LLM_ORIGIN;
     else process.env.LOCAL_LLM_ORIGIN = originalLocalOrigin;
   }
+});
+
+test("LM Studio Netlify function sends upstream-required headers", () => {
+  const originalApiKey = process.env.LMSTUDIO_API_KEY;
+  process.env.LMSTUDIO_API_KEY = "test-lmstudio-key";
+
+  try {
+    const headers = localLlmHeaders({ headers: { "content-type": "application/json" } }, "https://lm.alluser.site");
+
+    assert.equal(headers["content-type"], "application/json");
+    assert.equal(headers.origin, "https://lm.alluser.site");
+    assert.equal(headers.referer, "https://lm.alluser.site/");
+    assert.equal(headers["x-api-key"], "test-lmstudio-key");
+    assert.equal(headers.authorization, undefined);
+  } finally {
+    if (originalApiKey === undefined) delete process.env.LMSTUDIO_API_KEY;
+    else process.env.LMSTUDIO_API_KEY = originalApiKey;
+  }
+});
+
+test("LM Studio Netlify function adds non-streaming local model options", () => {
+  const body = localLlmBody(
+    {
+      httpMethod: "POST",
+      body: JSON.stringify({
+        model: "gemma-4-26b-a4b-it",
+        messages: [{ role: "user", content: "hi" }]
+      })
+    },
+    "/v1/chat/completions"
+  );
+
+  assert.deepEqual(JSON.parse(body), {
+    model: "gemma-4-26b-a4b-it",
+    messages: [{ role: "user", content: "hi" }],
+    reasoning_effort: "none",
+    stream: false
+  });
 });

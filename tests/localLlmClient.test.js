@@ -29,12 +29,12 @@ test("listModels returns normalized model ids from OpenAI-compatible endpoint", 
     endpoint: "http://localhost:1234/v1/",
     fetchImpl: async (url) => {
       calls.push(url);
-      return jsonResponse({ data: [{ id: "google/gemma-4-e4b" }, { id: "other" }] });
+      return jsonResponse({ data: [{ id: "google/gemma-4-e2b" }, { id: "other" }] });
     }
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.models, ["google/gemma-4-e4b", "other"]);
+  assert.deepEqual(result.models, ["google/gemma-4-e2b", "other"]);
   assert.equal(calls[0], "http://localhost:1234/v1/models");
 });
 
@@ -52,12 +52,12 @@ test("listModels normalizes network failures into unavailable state", async () =
 
 test("chatCompletion extracts content and marks length truncation", async () => {
   const result = await chatCompletion({
-    model: "google/gemma-4-e4b",
+    model: "google/gemma-4-e2b",
     messages: [{ role: "user", content: "안녕" }],
     fetchImpl: async (url, init) => {
       assert.equal(url, "/v1/chat/completions");
       const payload = JSON.parse(init.body);
-      assert.equal(payload.model, "google/gemma-4-e4b");
+      assert.equal(payload.model, "google/gemma-4-e2b");
       return jsonResponse({ choices: [{ message: { content: "답변" }, finish_reason: "length" }] });
     }
   });
@@ -69,7 +69,7 @@ test("chatCompletion extracts content and marks length truncation", async () => 
 
 test("chatCompletion treats reasoning-only or empty responses as recoverable failure", async () => {
   const result = await chatCompletion({
-    model: "google/gemma-4-e4b",
+    model: "google/gemma-4-e2b",
     messages: [{ role: "user", content: "질문" }],
     fetchImpl: async () => jsonResponse({ choices: [{ message: { reasoning_content: "생각만 있음" } }] })
   });
@@ -79,15 +79,15 @@ test("chatCompletion treats reasoning-only or empty responses as recoverable fai
   assert.match(result.message, /답변을 비워/);
 });
 
-test("createLocalLlmSettings prefers the e4b fallback when it is available", () => {
-  assert.deepEqual(createLocalLlmSettings({ models: ["model-a", "google/gemma-4-e4b"], fallbackModelId: "google/gemma-4-e4b" }), {
+test("createLocalLlmSettings prefers the e2b fallback when it is available", () => {
+  assert.deepEqual(createLocalLlmSettings({ models: ["model-a", "google/gemma-4-e2b"], fallbackModelId: "google/gemma-4-e2b" }), {
     endpoint: "/v1",
-    modelId: "google/gemma-4-e4b"
+    modelId: "google/gemma-4-e2b"
   });
 });
 
-test("createLocalLlmSettings falls back to a discovered model when e4b is not loaded", () => {
-  assert.deepEqual(createLocalLlmSettings({ models: ["model-a"], fallbackModelId: "google/gemma-4-e4b" }), {
+test("createLocalLlmSettings falls back to a discovered model when e2b is not loaded", () => {
+  assert.deepEqual(createLocalLlmSettings({ models: ["model-a"], fallbackModelId: "google/gemma-4-e2b" }), {
     endpoint: "/v1",
     modelId: "model-a"
   });

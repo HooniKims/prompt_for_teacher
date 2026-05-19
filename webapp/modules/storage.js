@@ -283,7 +283,7 @@ function normalizeSettings(value) {
     llmEndpoint: llmProvider === "openai" ? OPENAI_LLM_ENDPOINT : normalizeEndpointSetting(source.llmEndpoint, DEFAULT_LLM_ENDPOINT),
     llmModelId: typeof source.llmModelId === "string" && source.llmModelId.trim()
       ? source.llmModelId.trim()
-      : llmProvider === "openai" ? DEFAULT_OPENAI_MODEL_ID : "google/gemma-4-e4b"
+      : llmProvider === "openai" ? DEFAULT_OPENAI_MODEL_ID : "google/gemma-4-e2b"
   };
 }
 

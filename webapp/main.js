@@ -543,7 +543,7 @@ function handleSetDefaultModel(provider) {
   const result = writeSettings(settings);
   if (!result.ok) ui.showToast("기본 모델 설정을 저장하지 못했습니다.");
   render();
-  ui.showToast(provider === "openai" ? "기본 모델을 5.4 nano로 바꿨습니다." : "기본 모델을 e4b로 바꿨습니다.");
+  ui.showToast(provider === "openai" ? "기본 모델을 5.4 nano로 바꿨습니다." : "기본 모델을 e2b로 바꿨습니다.");
   checkLocalLlm();
 }
 

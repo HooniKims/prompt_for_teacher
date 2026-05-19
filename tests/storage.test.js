@@ -290,7 +290,7 @@ test("readSettings normalizes invalid theme and endpoint values", () => {
   assert.equal(settings.llmModelId, "gpt-5.4-nano");
 });
 
-test("readSettings keeps local e4b when local provider is selected", () => {
+test("readSettings keeps local e2b when local provider is selected", () => {
   const storage = createLocalStorageMock({
     [STORAGE_KEYS.settings]: JSON.stringify({ llmProvider: "local", llmEndpoint: "", llmModelId: "" })
   });
@@ -299,7 +299,7 @@ test("readSettings keeps local e4b when local provider is selected", () => {
 
   assert.equal(settings.llmProvider, "local");
   assert.equal(settings.llmEndpoint, "/v1");
-  assert.equal(settings.llmModelId, "google/gemma-4-e4b");
+  assert.equal(settings.llmModelId, "google/gemma-4-e2b");
 });
 
 test("readSettings can select OpenAI 5.4 nano as the default model", () => {

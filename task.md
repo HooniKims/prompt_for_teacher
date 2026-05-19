@@ -35,7 +35,7 @@ http://127.0.0.1:5173/
 - 이전 작업을 참고하여 새 프롬프트 작성 가능
 - 저장한 작업 다시 불러오기 가능
 - 기본 AI 모델은 OpenAI `gpt-5.4-nano`
-- 로컬 모델 선택지는 `e4b`
+- 로컬 모델 선택지는 `e2b`
 - AI 연결 상태에 현재 모델 표시
 - OpenAI API 사용을 위한 `.env` 로드 지원
 - LM Studio/OpenAI-compatible 서버 프록시 지원
@@ -149,7 +149,6 @@ OPENAI_MODEL=gpt-5.4-nano
 # LM Studio를 배포 환경에서 함께 쓸 때
 LMSTUDIO_API_URL=https://lm.alluser.site
 LMSTUDIO_API_KEY=필요한 경우에만 입력
-LMSTUDIO_GEMMA_E4B_MODEL=google/gemma-4-e4b
 LMSTUDIO_GEMMA_E2B_MODEL=google/gemma-4-e2b
 LMSTUDIO_GEMMA_26B_MODEL=gemma-4-26b-a4b-it
 ```

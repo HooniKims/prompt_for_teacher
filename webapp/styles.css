@@ -155,8 +155,14 @@ button {
 }
 
 .brand-block h1 {
-  font-size: clamp(34px, 4vw, 56px);
-  line-height: 0.98;
+  font-size: clamp(29px, 3.25vw, 46px);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.05;
+}
+
+.brand-block h1 span {
+  display: block;
+  white-space: nowrap;
 }
 
 .subtitle {

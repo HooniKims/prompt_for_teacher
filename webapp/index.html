@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 이전에 사람이 있다</title>
+    <link rel="icon" type="image/png" href="./assets/favicon.png" />
+    <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <input id="historyPanelToggle" class="panel-toggle" type="checkbox" aria-hidden="true" />
+    <input id="resultPanelToggle" class="panel-toggle" type="checkbox" aria-hidden="true" />
+    <label class="panel-backdrop history-backdrop" for="historyPanelToggle" aria-label="작업 목록 닫기"></label>
+    <label class="panel-backdrop result-backdrop" for="resultPanelToggle" aria-label="완성본 닫기"></label>
+
+    <div class="app-shell">
+      <aside class="history-panel" aria-label="대화 히스토리">
+        <label class="mobile-panel-close" for="historyPanelToggle">닫기</label>
+        <div class="brand-block">
+          <p class="eyebrow">질문 가이드</p>
+          <h1>AI 이전에<br />사람이 있다</h1>
+          <p class="subtitle">생각의 힘, 사고의 단단함</p>
+        </div>
+
+        <section class="history-section">
+          <div class="section-title-row">
+            <h2>현재 흐름</h2>
+            <span id="progressBadge" class="small-badge">0 / 10</span>
+          </div>
+          <ol id="stepHistory" class="step-history">
+            <li class="history-item">
+              <div class="history-index">01</div>
+              <div>
+                <p class="history-question">만들 것 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">02</div>
+              <div>
+                <p class="history-question">사용 장면 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">03</div>
+              <div>
+                <p class="history-question">교육 및 업무 맥락 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">04</div>
+              <div>
+                <p class="history-question">목표 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">05</div>
+              <div>
+                <p class="history-question">교사 판단 지점 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">06</div>
+              <div>
+                <p class="history-question">필요한 자료 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">07</div>
+              <div>
+                <p class="history-question">안전 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">08</div>
+              <div>
+                <p class="history-question">외부 도구 및 서비스 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">09</div>
+              <div>
+                <p class="history-question">결과물 모습 구체화</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+            <li class="history-item">
+              <div class="history-index">10</div>
+              <div>
+                <p class="history-question">품질 기준 및 수정 방향 확인</p>
+                <p class="history-answer">보조 질문</p>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <section class="history-section saved-section">
+          <div class="section-title-row">
+            <h2>저장한 작업</h2>
+            <button id="clearSavedButton" class="text-button" type="button">모두 지우기</button>
+          </div>
+          <div id="savedSessions" class="saved-sessions"></div>
+        </section>
+
+        <section class="history-section memory-section">
+          <div class="section-title-row">
+            <h2>이전 작업 참고</h2>
+            <button id="toggleMemoryButton" class="text-button" type="button">켜짐</button>
+          </div>
+          <p id="memoryStatus" class="memory-status">이 브라우저의 이전 작업 요약을 참고합니다.</p>
+          <div class="memory-actions">
+            <button id="clearMemoryButton" class="text-button" type="button">기억 지우기</button>
+            <button id="clearDraftButton" class="text-button" type="button">새로 시작</button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="topbar-title">
+            <p class="eyebrow">질문하며 정리하기</p>
+            <div class="title-row">
+              <h2>질문형 프롬프트 가이드</h2>
+              <div class="guide-mode-box" aria-label="질문 방식 선택">
+                <span class="guide-mode-label">질문 방식</span>
+                <div class="guide-mode-options">
+                  <button id="friendlyModeButton" class="mode-button" type="button">친절</button>
+                  <button id="thoroughModeButton" class="mode-button is-active" type="button">꼼꼼</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="status-cluster" aria-label="서비스 상태">
+            <label class="mobile-panel-button" for="historyPanelToggle">작업 목록</label>
+            <label class="mobile-panel-button" for="resultPanelToggle">완성본</label>
+            <button id="themeToggleButton" class="theme-toggle" type="button" aria-label="라이트 모드와 다크 모드 전환">LIGHT</button>
+            <div class="ai-status-box" aria-label="AI 상태">
+              <span class="ai-status-label">AI 상태</span>
+              <div class="ai-status-value">
+                <span id="llmStatusBadge" class="status-pill accent">AI 연결 확인 중</span>
+                <span id="llmModelBadge" class="model-pill" hidden>모델 확인 중</span>
+                <span class="ai-status-label model-choice-label">기본 모델</span>
+                <button id="localModelButton" class="mode-button is-active" type="button">e4b</button>
+                <button id="openAiModelButton" class="mode-button" type="button">5.4 nano</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="content-grid">
+          <section class="chat-panel" aria-label="프롬프트 설계 대화">
+            <div id="chatLog" class="chat-log" aria-live="polite"></div>
+
+            <form id="chatForm" class="composer">
+              <label class="sr-only" for="messageInput">응답 입력</label>
+              <textarea
+                id="messageInput"
+                rows="1"
+                placeholder="하고 싶은 작업을 한두 문장으로 적어주세요."
+              ></textarea>
+              <button id="sendButton" class="send-button" type="submit">보내기</button>
+              <button id="restartButton" class="restart-button" type="button">처음부터 다시 시작</button>
+            </form>
+          </section>
+
+          <aside class="result-panel" aria-label="최종 프롬프트 미리보기">
+            <label class="mobile-panel-close" for="resultPanelToggle">닫기</label>
+            <div class="result-header">
+              <div>
+                <p class="eyebrow">완성본</p>
+                <h2>최종 프롬프트</h2>
+              </div>
+              <button id="copyPromptButton" class="ghost-button" type="button">전체 복사</button>
+            </div>
+            <pre id="promptPreview" class="prompt-preview sr-only">10단계 질문이 끝나면 복사 가능한 프롬프트가 여기에 표시됩니다.</pre>
+
+            <section class="prompt-section" aria-label="교사용 요약">
+              <div class="prompt-section-header">
+                <h3>교사용 요약</h3>
+                <button id="copyTeacherSummaryButton" class="ghost-button compact" type="button">요약 복사</button>
+              </div>
+              <pre id="teacherSummaryPreview" class="prompt-preview prompt-preview-split">완성되면 교사가 먼저 볼 요약이 여기에 표시됩니다.</pre>
+            </section>
+
+            <section class="prompt-section" aria-label="AI 실행용 프롬프트">
+              <div class="prompt-section-header">
+                <h3>AI 실행용 프롬프트</h3>
+                <button id="copyAiPromptButton" class="ghost-button compact" type="button">프롬프트 복사</button>
+              </div>
+              <pre id="aiPromptPreview" class="prompt-preview prompt-preview-split">완성되면 AI에 붙여 넣을 프롬프트가 여기에 표시됩니다.</pre>
+            </section>
+
+            <div class="result-header reference-header">
+              <div>
+                <p class="eyebrow">함께 확인할 내용</p>
+                <h2>참고 안내</h2>
+              </div>
+            </div>
+            <div id="referencePreview" class="reference-preview">
+              개인정보 또는 학습지원 소프트웨어 관련 신호가 있을 때 관련 기준과 쉬운 설명이 분리되어 표시됩니다.
+            </div>
+
+            <section class="model-plan" aria-label="AI 연결 상태">
+              <p class="eyebrow">AI 연결 상태</p>
+              <h2 id="modelPlanTitle">AI 연결 확인 중</h2>
+              <p id="modelPlanDescription">
+                AI가 답변할 수 있는지 확인하고 있습니다.
+              </p>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <footer class="site-footer">© HooniKim. All rights reserved.</footer>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./main.js?v=shared-llm-endpoint"></script>
+  </body>
+</html>

@@ -49,6 +49,7 @@ let sessions = readSessions();
 let state = restoreDraft(readActiveDraft()) ?? createInitialState();
 let requestGeneration = 0;
 let demoTimer = 0;
+let mobileTopbarExpanded = true;
 
 const ui = createUi();
 
@@ -77,9 +78,39 @@ function init() {
   });
 
   applyTheme();
+  bindMobileTopbarBehavior();
   render();
   checkLocalLlm();
   maybeRunPrivacyDemo();
+}
+
+function bindMobileTopbarBehavior() {
+  window.addEventListener("scroll", updateMobileTopbarFromScroll, { passive: true });
+  ui.elements.chatPanel?.addEventListener("scroll", updateMobileTopbarFromScroll, { passive: true });
+}
+
+function currentScrollTop() {
+  return Math.max(window.scrollY || 0, ui.elements.chatPanel?.scrollTop || 0);
+}
+
+function updateMobileTopbarFromScroll() {
+  if (!state.initialRequest) {
+    mobileTopbarExpanded = true;
+  } else {
+    mobileTopbarExpanded = currentScrollTop() <= 4;
+  }
+  applyMobileTopbarState();
+}
+
+function collapseMobileTopbarAfterInput() {
+  if (!state.initialRequest) return;
+  mobileTopbarExpanded = false;
+  applyMobileTopbarState();
+}
+
+function resetMobileTopbar() {
+  mobileTopbarExpanded = true;
+  applyMobileTopbarState();
 }
 
 function createDemoStateFromUrl() {
@@ -340,13 +371,16 @@ async function handleSubmit(text) {
     state = startRequest(state, text);
     persistDraftIfNeeded();
     render();
+    collapseMobileTopbarAfterInput();
     await requestNextQuestion();
   } else if (state.completed) {
     await handleRevision(text);
+    collapseMobileTopbarAfterInput();
   } else {
     state = recordConversationAnswer(state, text, null);
     persistDraftIfNeeded();
     render();
+    collapseMobileTopbarAfterInput();
     await requestNextQuestion();
   }
 }
@@ -356,6 +390,7 @@ async function handleOption(option) {
   state = recordConversationAnswer(state, option.label, option);
   persistDraftIfNeeded();
   render();
+  collapseMobileTopbarAfterInput();
   await requestNextQuestion();
 }
 
@@ -488,6 +523,7 @@ function persistDraftIfNeeded() {
 
 function handleLoadSession(session) {
   const clearResult = clearActiveDraft();
+  resetMobileTopbar();
   state = {
     ...createInitialState(),
     ...session,
@@ -551,6 +587,10 @@ function applyTheme() {
   document.documentElement.dataset.theme = settings.theme || "light";
 }
 
+function applyMobileTopbarState() {
+  document.body.classList.toggle("is-mobile-topbar-compact", Boolean(state.initialRequest && !mobileTopbarExpanded));
+}
+
 function handleClearMemory() {
   const result = clearMemoryStore();
   memoryStore = readMemoryStore();
@@ -561,6 +601,7 @@ function handleClearMemory() {
 function handleClearDraft() {
   requestGeneration += 1;
   const result = clearActiveDraft();
+  resetMobileTopbar();
   state = appendAssistantMessage(createInitialState(), welcomeMessage());
   render();
   checkLocalLlm();
@@ -639,6 +680,7 @@ function selectCopyFallback(elementId) {
 }
 
 function render() {
+  applyMobileTopbarState();
   ui.render({
     state,
     steps,

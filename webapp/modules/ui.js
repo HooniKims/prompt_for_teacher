@@ -3,6 +3,7 @@ import { splitFinalPromptSections } from "./promptBuilder.js";
 export function createUi() {
   let toastTimeout = 0;
   const elements = {
+    chatPanel: document.querySelector(".chat-panel"),
     chatLog: document.getElementById("chatLog"),
     chatForm: document.getElementById("chatForm"),
     messageInput: document.getElementById("messageInput"),

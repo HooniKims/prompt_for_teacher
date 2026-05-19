@@ -51,8 +51,10 @@ test("mobile layout keeps chat primary and opens side panels on demand", () => {
   assert.match(css, /@media \(max-width: 820px\)/);
   assert.match(css, /#historyPanelToggle:checked\s*~\s*\.app-shell\s*\.history-panel/s);
   assert.match(css, /#resultPanelToggle:checked\s*~\s*\.app-shell\s*\.result-panel/s);
-  assert.match(css, /\.topbar-title,\s*\.topbar \.ai-status-box\s*{[^}]*display:\s*none/s);
-  assert.match(css, /\.chat-panel\s*{[^}]*min-height:\s*calc\(100dvh - 68px\)/s);
+  assert.match(css, /body\.is-mobile-topbar-compact \.topbar-title,\s*body\.is-mobile-topbar-compact \.topbar \.ai-status-box\s*{[^}]*display:\s*none/s);
+  assert.match(css, /body\.is-mobile-topbar-compact \.chat-panel\s*{[^}]*min-height:\s*calc\(100dvh - 68px\)/s);
+  assert.match(main, /collapseMobileTopbarAfterInput\(\)/);
+  assert.match(main, /currentScrollTop\(\) <= 4/);
 });
 
 test("left panel restores the original ten-step flow preview", () => {

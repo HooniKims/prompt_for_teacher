@@ -942,7 +942,7 @@ button {
     position: sticky;
     top: 0;
     z-index: 20;
-    min-height: 0;
+    min-height: 92px;
     padding: var(--spacing-12) var(--spacing-16);
   }
 
@@ -950,11 +950,6 @@ button {
   .result-header {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .topbar-title,
-  .topbar .ai-status-box {
-    display: none;
   }
 
   .title-row {
@@ -995,6 +990,19 @@ button {
   }
 
   .chat-panel {
+    min-height: calc(100dvh - 92px);
+  }
+
+  body.is-mobile-topbar-compact .topbar {
+    min-height: 0;
+  }
+
+  body.is-mobile-topbar-compact .topbar-title,
+  body.is-mobile-topbar-compact .topbar .ai-status-box {
+    display: none;
+  }
+
+  body.is-mobile-topbar-compact .chat-panel {
     min-height: calc(100dvh - 68px);
   }
 

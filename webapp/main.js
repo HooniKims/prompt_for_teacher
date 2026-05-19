@@ -117,6 +117,7 @@ function resetMobileTopbar() {
 function createDemoStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("testScenario") === "e2bClassRules") return createE2bClassRulesDemoState();
+  if (params.get("testScenario") === "nanoPrivacyDetailed") return createNanoPrivacyDetailedDemoState();
   if (params.get("testScenario") !== "privacy") return null;
 
   const demoState = {
@@ -175,6 +176,116 @@ function createDemoStateFromUrl() {
 5. 개인정보보호 구현 체크리스트
 6. 심의 대응 자료 생성 계획
 7. 개발 AI에게 넘길 구현 순서`, fallbackPrompt);
+  return completeState(demoState, {
+    finalPrompt,
+    referenceNotes: buildReferenceNotes(demoState.answerMeta, demoState)
+  });
+}
+
+function createNanoPrivacyDetailedDemoState() {
+  settings = { ...settings, llmProvider: "openai", llmEndpoint: OPENAI_LLM_ENDPOINT, llmModelId: DEFAULT_OPENAI_MODEL_ID };
+  const demoState = {
+    ...createInitialState(),
+    initialRequest: "학생 개인정보와 상담 기록, 수행평가 피드백을 관리하는 교사용 웹앱을 만들고 싶습니다.",
+    activeStepIndex: steps.length,
+    llmStatus: "ready",
+    availableModels: [DEFAULT_OPENAI_MODEL_ID],
+    messages: [
+      { role: "assistant", text: welcomeMessage() },
+      { role: "user", text: "학생 개인정보와 상담 기록, 수행평가 피드백을 관리하는 교사용 웹앱을 만들고 싶습니다." },
+      { role: "assistant", text: "학생에게 보이는 정보와 교사용으로만 남길 정보를 나눠 확인할게요." },
+      { role: "user", text: "학생은 자기 피드백과 다음 학습 과제만 볼 수 있고, 상담 메모와 세부 평가 기록은 교사만 볼 수 있어야 합니다." },
+      { role: "assistant", text: "개인정보보호와 심의 준비를 참고 안내로 분리하고, 구현 계획은 AI 실행용 프롬프트에 넣어 정리했습니다." }
+    ],
+    conversationTurns: [
+      { role: "user", text: "학생 개인정보와 상담 기록, 수행평가 피드백을 관리하는 교사용 웹앱을 만들고 싶습니다." },
+      { role: "user", text: "수집 항목은 학생 이름, 학번, 반, 보호자 연락처, 상담 메모, 수행평가 점수, 오답 유형, 교사 피드백입니다." },
+      { role: "user", text: "학생은 자기 피드백과 다음 학습 과제만 볼 수 있고, 상담 메모와 세부 평가 기록은 교사만 볼 수 있어야 합니다." },
+      { role: "user", text: "학교 내부 검토 전에는 실제 학생 정보를 넣지 않고, 예시 데이터와 가명으로 테스트해야 합니다." },
+      { role: "user", text: "개인정보보호와 학습지원 소프트웨어 심의 준비는 참고 안내에 정리하고, 프롬프트에는 이를 지키는 구현 계획만 넣어주세요." }
+    ],
+    answerMeta: {
+      safety: { id: "직접", label: "학생 이름, 학번, 보호자 연락처, 상담 메모, 평가 기록 포함", risk: "sensitive" },
+      externalService: { id: "직접", label: "학생 로그인, 피드백 확인, 교수학습평가 지원에 사용", risk: "learningSoftware" }
+    }
+  };
+  const fallbackPrompt = buildFinalPrompt(demoState, { memoryItems: [] });
+  const finalPrompt = ensureFinalPromptRequirements(`[교사용 요약]
+- 만들 것: 학생 개인정보, 상담 기록, 수행평가 피드백을 관리하는 교사용 웹앱
+- 사용 목적: 교사가 학생별 학습 상황을 확인하고, 필요한 피드백과 다음 학습 과제를 안전하게 제공
+- 학생에게 보이는 정보: 자기 피드백, 공개된 수행평가 요약, 다음 학습 과제
+- 교사용으로만 남길 정보: 상담 메모, 세부 평가 기록, 보호자 연락처, 오답 유형 분석, 접근 로그
+- 중요한 준비: 최소 수집, 가명 테스트, 권한 분리, 삭제/내보내기, 접근 로그, 학교 내부 검토와 심의 준비
+
+[AI 실행용 프롬프트]
+너는 학교 현장에서 사용할 교사용 학습지원 웹앱을 설계하는 기획자이자 개발 설계자다. 아래 조건을 바탕으로 교사가 이해하기 쉽고 개발 AI가 바로 구현 계획을 세울 수 있는 요구사항 정의서와 구현 지시서를 한국어로 작성하라.
+
+[상황]
+- 대상: 초등 또는 중등 담임교사와 학생
+- 목적: 학생별 상담 기록, 수행평가 피드백, 다음 학습 과제를 한곳에서 관리한다.
+- 수집 가능 항목: 학생 이름, 학번, 반, 보호자 연락처, 상담 메모, 수행평가 점수, 오답 유형, 교사 피드백
+- 학생 공개 범위: 학생은 자기 피드백, 공개된 수행평가 요약, 다음 학습 과제만 볼 수 있다.
+- 교사 전용 범위: 상담 메모, 세부 평가 기록, 보호자 연락처, 오답 유형 분석, 접근 로그는 교사용으로만 둔다.
+- 개발 전제: 실제 학생 정보 대신 예시 데이터와 가명 데이터를 사용해 먼저 설계하고 테스트한다.
+
+[기능별 모듈]
+다음 모듈을 분리해서 설계하라. 각 모듈에는 역할, 주요 기능, 입력 데이터, 출력 데이터, 예외 상황, 수정할 때 주의할 점을 포함한다.
+
+1. 화면/UI 모듈
+- 교사 대시보드: 학급 전체 현황, 최근 상담, 피드백 작성 필요 학생, 공개 대기 피드백을 보여준다.
+- 학생 상세 화면: 학생 기본 정보, 수행평가 요약, 오답 유형, 공개된 피드백, 교사용 상담 메모를 탭으로 분리한다.
+- 학생 화면: 자기 피드백, 다음 학습 과제, 공개된 평가 요약만 보여준다.
+- 심의 준비 화면: 수집 항목, 이용 목적, 보관 기간, 권한 구조, 데이터 보관 위치를 확인하고 문서로 내보낸다.
+
+2. 인증과 권한 모듈
+- 역할: 교사, 학생, 관리자.
+- 학생은 자기 데이터만 조회한다.
+- 교사는 담당 학급 학생 데이터만 조회하고 수정한다.
+- 관리자도 민감 상담 메모를 기본으로 볼 수 없게 하고, 필요 시 감사 로그를 남긴다.
+- 서버 API에서 권한을 강제하고, 화면 숨김만으로 보안을 처리하지 않는다.
+
+3. 데이터 모델 모듈
+- Student: 내부 ID, 가명 표시명, 학년/반/번호, 최소 식별 정보.
+- GuardianContact: 보호자 연락처는 별도 테이블로 분리하고 접근 권한을 제한한다.
+- AssessmentRecord: 평가명, 점수 또는 성취 수준, 공개 여부, 수정 이력.
+- ErrorPattern: 오답 유형, 관련 단원, 교사용 분석 메모.
+- CounselingNote: 상담 날짜, 교사용 메모, 민감도, 열람 권한, 수정 이력.
+- Feedback: 학생에게 공개할 피드백, 다음 학습 과제, 공개 상태, 공개 일시.
+- AccessLog: 누가, 언제, 어떤 학생 정보에 접근했는지 기록한다.
+
+4. 평가/피드백 모듈
+- 교사는 수행평가 결과와 오답 유형을 입력한다.
+- 학생에게 보일 내용과 교사용 내부 메모를 분리한다.
+- 피드백은 저장 상태와 공개 상태를 나눈다.
+- 공개 전 미리보기와 공개 취소 기능을 둔다.
+
+5. 개인정보보호 구현 모듈
+- 최소 수집 원칙을 적용하고 필수/선택 항목을 분리한다.
+- 실제 학생 정보 없이 가명 데이터로 테스트할 수 있게 한다.
+- 학생 목록에서는 이름 대신 내부 ID 또는 가명 표시를 선택할 수 있게 한다.
+- 보호자 연락처, 상담 메모는 기본 마스킹한다.
+- 삭제, 보관 기간 만료, 데이터 내보내기 기능을 제공한다.
+- 접근 로그와 수정 이력을 남긴다.
+
+6. 심의 대응 구현 모듈
+- 교사가 다음 항목을 확인하고 내보낼 수 있게 한다: 수집 항목, 이용 목적, 보관 기간, 접근 권한, 삭제 방법, 보안 조치, 데이터 보관 위치, 외부 서비스 사용 여부.
+- 학습지원 소프트웨어 검토에 필요한 화면 캡처용 요약 페이지를 만든다.
+- 학교 내부 검토 전 실제 학생 정보를 외부 AI나 외부 서비스에 넣지 않도록 안내 문구를 표시한다.
+
+7. 테스트 모듈
+- 학생이 다른 학생 정보에 접근할 수 없는지 테스트한다.
+- 교사가 담당 학급 밖 학생 정보를 볼 수 없는지 테스트한다.
+- 공개 전 피드백이 학생 화면에 보이지 않는지 테스트한다.
+- 상담 메모와 보호자 연락처가 기본 마스킹되는지 테스트한다.
+- 삭제/내보내기/접근 로그/수정 이력이 정상 동작하는지 테스트한다.
+- 모바일 화면에서 학생/교사 주요 화면이 깨지지 않는지 테스트한다.
+
+[완료 기준]
+- 교사는 학생별 평가, 오답 유형, 상담 메모, 피드백을 분리해 관리할 수 있다.
+- 학생은 자기에게 공개된 피드백과 다음 학습 과제만 볼 수 있다.
+- 개인정보보호와 심의 준비에 필요한 항목을 교사가 확인하고 문서로 내보낼 수 있다.
+- 모든 결과는 한국어로 작성하고, 교사가 바로 읽고 수정할 수 있는 쉬운 표현을 사용한다.`, fallbackPrompt);
+
   return completeState(demoState, {
     finalPrompt,
     referenceNotes: buildReferenceNotes(demoState.answerMeta, demoState)

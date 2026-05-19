@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
+    "build": "npm run check",
     "dev": "node dev-server.mjs",
     "test": "node --test",
     "check": "node --check webapp/main.js"

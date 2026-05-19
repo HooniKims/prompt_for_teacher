@@ -942,7 +942,7 @@ button {
     position: sticky;
     top: 0;
     z-index: 20;
-    min-height: 92px;
+    min-height: 0;
     padding: var(--spacing-12) var(--spacing-16);
   }
 
@@ -950,6 +950,11 @@ button {
   .result-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-title,
+  .topbar .ai-status-box {
+    display: none;
   }
 
   .title-row {
@@ -965,7 +970,7 @@ button {
 
   .status-cluster {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
     gap: var(--spacing-8);
   }
 
@@ -990,7 +995,7 @@ button {
   }
 
   .chat-panel {
-    min-height: calc(100dvh - 92px);
+    min-height: calc(100dvh - 68px);
   }
 
   .chat-log {

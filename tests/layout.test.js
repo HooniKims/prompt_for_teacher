@@ -74,6 +74,7 @@ test("left panel restores the original ten-step flow preview", () => {
   assert.doesNotMatch(ui, /보조 질문/);
   assert.doesNotMatch(ui, /아직 확인 전|대화에서 확인됨/);
   assert.match(css, /\.history-item\.is-current/);
+  assert.match(css, /\.history-panel\s*{[^}]*position:\s*sticky[^}]*max-height:\s*calc\(100vh - var\(--footer-height\)\)/s);
 });
 
 test("AI status controls are grouped in a clear box", () => {

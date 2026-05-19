@@ -1,4 +1,4 @@
-import { splitFinalPromptSections } from "./promptBuilder.js";
+import { splitFinalPromptSections } from "./promptBuilder.js?v=summary-fallback-2";
 
 export function createUi() {
   let toastTimeout = 0;

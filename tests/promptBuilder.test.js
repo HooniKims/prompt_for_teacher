@@ -151,6 +151,20 @@ test("splitFinalPromptSections recognizes model-written AI execution headings", 
   assert.match(sections.aiPrompt, /기능별 모듈/);
 });
 
+test("splitFinalPromptSections creates a teacher summary when model omits the summary heading", () => {
+  const prompt = `[역할]
+- 당신은 교사용 독서 기록 웹앱을 설계하는 개발자입니다.
+
+[목표]
+- 학생은 읽은 책 제목과 한 줄 소감을 남깁니다.
+- 교사는 학생별 피드백을 공개 버튼으로 제공합니다.`;
+  const sections = splitFinalPromptSections(prompt);
+
+  assert.match(sections.teacherSummary, /^\[교사용 요약\]/);
+  assert.match(sections.teacherSummary, /교사가 특히 확인할 점/);
+  assert.match(sections.aiPrompt, /\[역할\]/);
+});
+
 test("buildFinalPrompt keeps teacher judgment with the teacher", () => {
   const prompt = buildFinalPrompt(completedSession);
   assert.match(prompt, /교사의 판단을 대신 확정하지 말고/);

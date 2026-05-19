@@ -51,6 +51,27 @@ function hasDetailedExecutionGuide(text = "") {
   return /상세\s*작성\s*조건|요구사항\s*정의서\s*수준|테스트\s*기준,\s*완료\s*기준/.test(text);
 }
 
+function firstMeaningfulLines(text = "", limit = 3) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*\d.)\s]+/, "").trim())
+    .filter((line) => line && !/^\[.+\]$/.test(line) && line.length > 8)
+    .slice(0, limit);
+}
+
+function fallbackTeacherSummaryFromPrompt(text = "") {
+  const lines = firstMeaningfulLines(text, 3);
+  const confirmed = lines.length
+    ? lines.map((line) => `  - ${line}`).join("\n")
+    : "  - AI 실행용 프롬프트에 정리된 요구사항을 기준으로 확인합니다.";
+
+  return `[교사용 요약]
+- 만들 것: AI 실행용 프롬프트에 정리된 앱, 자료, 프로그램 또는 문서
+- 확인한 핵심 내용:
+${confirmed}
+- 교사가 특히 확인할 점: 실제 수업 맥락에 맞는지, 학생 개인정보나 평가 기록이 포함되는지, 외부 서비스 사용과 학교 내부 검토가 필요한지 확인합니다.`;
+}
+
 function detailedExecutionGuideSection() {
   return `[상세 작성 조건]
 - AI 실행용 프롬프트는 짧은 요약이 아니라, 개발자나 제작 AI가 바로 실행할 수 있는 요구사항 정의서 수준으로 작성한다.
@@ -231,7 +252,12 @@ export function splitFinalPromptSections(prompt = "") {
   if (!text) return { teacherSummary: "", aiPrompt: "" };
 
   const match = findAiPromptHeading(text);
-  if (!match) return { teacherSummary: "", aiPrompt: text };
+  if (!match) {
+    return {
+      teacherSummary: fallbackTeacherSummaryFromPrompt(text),
+      aiPrompt: text
+    };
+  }
 
   return {
     teacherSummary: text.slice(0, match.index).trim(),

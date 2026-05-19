@@ -30,7 +30,7 @@ import {
   writeSettings
 } from "./modules/storage.js?v=shared-llm-endpoint";
 import { createMemoryItemsFromSession, mergeMemoryItems, selectMemoryItems } from "./modules/memory.js";
-import { createUi } from "./modules/ui.js?v=shared-llm-endpoint";
+import { createUi } from "./modules/ui.js?v=summary-fallback-2";
 import {
   DEFAULT_LLM_ENDPOINT,
   DEFAULT_OPENAI_MODEL_ID,
@@ -58,7 +58,8 @@ function init() {
   if (!migration.ok) ui.showToast("이전 저장 데이터를 새 형식으로 옮기지 못했습니다.");
 
   sessions = readSessions();
-  state = createDemoStateFromUrl() ?? state;
+  const demoStateFromUrl = createDemoStateFromUrl();
+  state = demoStateFromUrl ?? state;
   if (!state.messages.length) {
     state = appendAssistantMessage(state, welcomeMessage());
   }
@@ -80,7 +81,7 @@ function init() {
   applyTheme();
   bindMobileTopbarBehavior();
   render();
-  checkLocalLlm();
+  if (!demoStateFromUrl) checkLocalLlm();
   maybeRunPrivacyDemo();
 }
 
@@ -115,6 +116,7 @@ function resetMobileTopbar() {
 
 function createDemoStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
+  if (params.get("testScenario") === "e2bClassRules") return createE2bClassRulesDemoState();
   if (params.get("testScenario") !== "privacy") return null;
 
   const demoState = {
@@ -176,6 +178,77 @@ function createDemoStateFromUrl() {
   return completeState(demoState, {
     finalPrompt,
     referenceNotes: buildReferenceNotes(demoState.answerMeta, demoState)
+  });
+}
+
+function createE2bClassRulesDemoState() {
+  settings = { ...settings, llmProvider: "local", llmEndpoint: DEFAULT_LLM_ENDPOINT, llmModelId: LOCAL_MODEL_ID };
+  const demoState = {
+    ...createInitialState(),
+    initialRequest: "초등학생용 학급 규칙 안내문을 만들고 싶어요.",
+    activeStepIndex: steps.length,
+    llmStatus: "ready",
+    availableModels: [LOCAL_MODEL_ID],
+    messages: [
+      { role: "assistant", text: welcomeMessage() },
+      { role: "user", text: "초등학생용 학급 규칙 안내문을 만들고 싶어요." },
+      { role: "assistant", text: "어느 장면에서 사용할 안내문인지 알려주세요." },
+      { role: "user", text: "새 학기 첫날 5학년 학생들에게 나눠줄 A4 한 장 안내문입니다." },
+      { role: "assistant", text: "규칙에 꼭 넣고 싶은 내용을 알려주세요." },
+      { role: "user", text: "서로 존중하기, 수업 시간 지키기, 친구 말 끊지 않기, 준비물 챙기기, 교실 깨끗하게 쓰기 규칙을 넣고 싶습니다." },
+      { role: "assistant", text: "최종 프롬프트를 정리했습니다. 오른쪽 완성본에서 확인해주세요." }
+    ],
+    conversationTurns: [
+      { role: "user", text: "초등학생용 학급 규칙 안내문을 만들고 싶어요." },
+      { role: "user", text: "새 학기 첫날 5학년 학생들에게 나눠줄 A4 한 장 안내문입니다." },
+      { role: "user", text: "서로 존중하기, 수업 시간 지키기, 친구 말 끊지 않기, 준비물 챙기기, 교실 깨끗하게 쓰기 규칙을 넣고 싶습니다." },
+      { role: "user", text: "말투는 따뜻하고 쉬운 표현이면 좋겠습니다. 개인정보는 들어가지 않습니다." }
+    ],
+    answerMeta: {
+      safety: { id: "A", label: "개인정보는 들어가지 않음", risk: "" },
+      externalService: { id: "A", label: "외부 서비스 사용 없음", risk: "" }
+    }
+  };
+  const fallbackPrompt = buildFinalPrompt(demoState, { memoryItems: [] });
+  const finalPrompt = ensureFinalPromptRequirements(`[교사용 요약]
+- 만들 것: 초등학생용 학급 규칙 안내문
+- 사용 장면: 새 학기 첫날 5학년 학생들에게 나눠줄 A4 한 장 안내문
+- 핵심 규칙: 서로 존중하기, 수업 시간 지키기, 친구 말 끊지 않기, 준비물 챙기기, 교실 깨끗하게 쓰기
+- 말투: 따뜻하고 쉬운 표현
+- 개인정보 확인: 개인정보는 들어가지 않음
+
+[AI 실행용 프롬프트]
+너는 초등학생 눈높이에 맞춰 긍정적인 학급 규칙 안내문을 작성하는 교육 콘텐츠 작가다.
+
+[목표]
+새 학기 첫날 5학년 학생들이 읽고 바로 이해할 수 있는 A4 한 장 분량의 학급 규칙 안내문을 작성한다.
+
+[포함할 내용]
+1. 학생이 친근하게 느낄 수 있는 제목
+2. 왜 학급 규칙이 필요한지 설명하는 짧은 안내 문장
+3. 다음 규칙 5개
+   - 서로 존중하기
+   - 수업 시간 지키기
+   - 친구 말 끊지 않기
+   - 준비물 챙기기
+   - 교실 깨끗하게 쓰기
+4. 각 규칙마다 학생이 실제로 어떻게 행동하면 되는지 쉬운 예시 1개
+5. 마지막 다짐 문장
+
+[작성 조건]
+- 모든 내용은 한국어로 작성한다.
+- 초등학생이 이해할 수 있는 짧고 따뜻한 문장을 사용한다.
+- 혼내는 말투보다 함께 약속하는 말투를 사용한다.
+- 개인정보, 학생 이름, 학번, 실제 반 정보는 넣지 않는다.
+- 교사가 바로 복사해 수정할 수 있도록 제목, 설명, 규칙, 다짐 순서로 정리한다.
+
+[결과물]
+- A4 한 장에 들어갈 수 있는 학급 규칙 안내문 초안
+- 교사가 바꿔 넣을 수 있는 자리표시자: [학년], [반], [선생님 이름]`, fallbackPrompt);
+
+  return completeState(demoState, {
+    finalPrompt,
+    referenceNotes: "개인정보보호 고려할 점\n- 이 샘플 안내문에는 실제 학생 이름, 학번, 연락처, 평가 기록을 넣지 않습니다.\n- 배포 전 학년, 반, 교사 이름처럼 필요한 정보만 교사가 직접 확인해 넣습니다.\n\n학습지원 소프트웨어 심의 관련 고려할 점\n- 단순 안내문 생성 샘플이므로 학생 로그인, 평가 기록, 학습 활동 기록을 다루지 않습니다.\n- 이후 앱 기능으로 확장할 경우 개인정보 수집 여부와 학교 내부 검토 필요성을 다시 확인합니다."
   });
 }
 

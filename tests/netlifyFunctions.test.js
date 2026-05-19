@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { upstreamPath } from "../netlify/functions/proxy-utils.js";
 import { handler as openAiHandler } from "../netlify/functions/openai.js";
+import { localLlmOrigin } from "../netlify/functions/local-llm.js";
 
 test("Netlify proxy path keeps v1 routes after redirects", () => {
   assert.equal(
@@ -44,3 +45,20 @@ test("OpenAI Netlify function returns configured model list without exposing API
   }
 });
 
+test("LM Studio Netlify function accepts common environment variable names", () => {
+  const originalLmStudioUrl = process.env.LMSTUDIO_API_URL;
+  const originalLocalOrigin = process.env.LOCAL_LLM_ORIGIN;
+
+  process.env.LMSTUDIO_API_URL = "http://example.test:1234/v1/";
+  process.env.LOCAL_LLM_ORIGIN = "http://fallback.test:1234";
+
+  try {
+    assert.equal(localLlmOrigin(), "http://example.test:1234");
+  } finally {
+    if (originalLmStudioUrl === undefined) delete process.env.LMSTUDIO_API_URL;
+    else process.env.LMSTUDIO_API_URL = originalLmStudioUrl;
+
+    if (originalLocalOrigin === undefined) delete process.env.LOCAL_LLM_ORIGIN;
+    else process.env.LOCAL_LLM_ORIGIN = originalLocalOrigin;
+  }
+});

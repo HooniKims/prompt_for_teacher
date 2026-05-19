@@ -7,7 +7,6 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 const HOST = "127.0.0.1";
 const PORT = 5173;
 const WEB_ROOT = resolve("webapp");
-const LLM_ORIGIN = "http://lm.alluser.site:1234";
 const OPENAI_ORIGIN = "https://api.openai.com";
 
 async function loadEnvFile() {
@@ -46,6 +45,11 @@ function addNoCacheHeaders(response) {
 function send(response, status, body, headers = {}) {
   response.writeHead(status, headers);
   response.end(body);
+}
+
+function localLlmOrigin() {
+  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "http://lm.alluser.site:1234";
+  return raw.trim().replace(/\/+$/g, "").replace(/\/v1$/i, "");
 }
 
 async function readRequestBody(request) {
@@ -91,9 +95,12 @@ async function serveStatic(request, response) {
 
 async function proxyLlm(request, response) {
   const incomingUrl = new URL(request.url, `http://${request.headers.host || `${HOST}:${PORT}`}`);
-  const upstreamUrl = new URL(`${LLM_ORIGIN}${incomingUrl.pathname}${incomingUrl.search}`);
-  const headers = { ...request.headers, host: upstreamUrl.host, origin: LLM_ORIGIN };
+  const llmOrigin = localLlmOrigin();
+  const upstreamUrl = new URL(`${llmOrigin}${incomingUrl.pathname}${incomingUrl.search}`);
+  const headers = { ...request.headers, host: upstreamUrl.host, origin: llmOrigin };
   delete headers.connection;
+  const lmStudioApiKey = process.env.LMSTUDIO_API_KEY?.trim();
+  if (lmStudioApiKey) headers.authorization = `Bearer ${lmStudioApiKey}`;
 
   try {
     const upstream = await fetch(upstreamUrl, {
@@ -217,6 +224,6 @@ await loadEnvFile();
 
 server.listen(PORT, HOST, () => {
   console.log(`Serving webapp at http://${HOST}:${PORT}/`);
-  console.log(`Proxying /v1/* to ${LLM_ORIGIN}/v1/*`);
+  console.log(`Proxying /v1/* to ${localLlmOrigin()}/v1/*`);
   console.log(`Proxying /openai/v1/* to ${OPENAI_ORIGIN}/v1/*`);
 });

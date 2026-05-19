@@ -1,7 +1,17 @@
 import { emptyResponse, jsonResponse, responseFromFetch, upstreamPath } from "./proxy-utils.js";
 
-function localLlmOrigin() {
-  return (process.env.LOCAL_LLM_ORIGIN || "http://lm.alluser.site:1234").replace(/\/+$/g, "");
+export function localLlmOrigin() {
+  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "http://lm.alluser.site:1234";
+  return raw.trim().replace(/\/+$/g, "").replace(/\/v1$/i, "");
+}
+
+function localLlmHeaders(event) {
+  const headers = {
+    "content-type": event.headers["content-type"] || event.headers["Content-Type"] || "application/json"
+  };
+  const apiKey = process.env.LMSTUDIO_API_KEY?.trim();
+  if (apiKey) headers.authorization = `Bearer ${apiKey}`;
+  return headers;
 }
 
 export async function handler(event) {
@@ -13,9 +23,7 @@ export async function handler(event) {
   try {
     const upstream = await fetch(`${origin}${path}`, {
       method: event.httpMethod,
-      headers: {
-        "content-type": event.headers["content-type"] || event.headers["Content-Type"] || "application/json"
-      },
+      headers: localLlmHeaders(event),
       body: event.httpMethod === "GET" || event.httpMethod === "HEAD" ? undefined : event.body
     });
 
@@ -24,4 +32,3 @@ export async function handler(event) {
     return jsonResponse(502, { error: error instanceof Error ? error.message : String(error) });
   }
 }
-

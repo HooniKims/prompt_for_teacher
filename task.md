@@ -144,7 +144,21 @@ OpenAI API 키는 `.env`에 둔다.
 
 ```text
 OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5.4-nano
+
+# LM Studio를 배포 환경에서 함께 쓸 때
+LMSTUDIO_API_URL=http://lm.alluser.site:1234
+LMSTUDIO_API_KEY=필요한 경우에만 입력
+LMSTUDIO_GEMMA_E4B_MODEL=google/gemma-4-e4b
 ```
+
+호환 이름:
+
+```text
+LOCAL_LLM_ORIGIN=http://lm.alluser.site:1234
+```
+
+`LMSTUDIO_API_URL`과 `LOCAL_LLM_ORIGIN`이 둘 다 있으면 `LMSTUDIO_API_URL`을 우선 사용한다.
 
 주의:
 
@@ -211,4 +225,3 @@ http://127.0.0.1:5173/?runDemo=privacy
 ```text
 https://github.com/HooniKims/prompt_for_teacher.git
 ```
-

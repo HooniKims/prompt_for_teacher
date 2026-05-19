@@ -36,9 +36,10 @@ http://127.0.0.1:5173/
 - 이전 작업을 참고하여 새 프롬프트 작성 가능
 - 저장한 작업 다시 불러오기 가능
 - 기본 AI 모델은 OpenAI `gpt-5.4-nano`
-- 로컬 모델 선택지는 `e2b`
+- 로컬 모델 선택지는 `e4b`
 - AI 연결 상태에 현재 모델 표시
-- e2b 사용 시 출력 중단을 줄이기 위해 질문 생성은 `3072`, 수정 요청은 `4096` 토큰을 기준으로 제한
+- e4b 사용 시 질문 생성과 수정 요청은 `4096` 토큰을 기준으로 제한
+- e2b는 Netlify 경유 긴 출력 테스트에서 `2048` 토큰은 완료됐지만 `3072` 이상에서 504가 발생해 기본 내장 후보에서 제외
 - 일시적인 생성 실패는 1회 자동 재시도
 - 모델 출력이 길어져 JSON 복구가 어렵게 잘린 경우, 대화 내용을 바탕으로 앱 내부 최종 프롬프트를 안전하게 생성
 - OpenAI API 사용을 위한 `.env` 로드 지원
@@ -157,7 +158,7 @@ OPENAI_MODEL=gpt-5.4-nano
 # LM Studio를 배포 환경에서 함께 쓸 때
 LMSTUDIO_API_URL=https://lm.alluser.site
 LMSTUDIO_API_KEY=필요한 경우에만 입력
-LMSTUDIO_GEMMA_E2B_MODEL=google/gemma-4-e2b
+LMSTUDIO_GEMMA_E4B_MODEL=google/gemma-4-e4b
 LMSTUDIO_GEMMA_26B_MODEL=gemma-4-26b-a4b-it
 ```
 
@@ -195,7 +196,7 @@ node --check dev-server.mjs
 ```text
 http://127.0.0.1:5173/?runDemo=privacy
 http://127.0.0.1:5173/?testScenario=nanoPrivacyDetailed
-http://127.0.0.1:5173/?testScenario=e2bClassRules
+http://127.0.0.1:5173/?testScenario=e4bClassRules
 ```
 
 확인한 내용:
@@ -211,7 +212,7 @@ http://127.0.0.1:5173/?testScenario=e2bClassRules
 - 복사 버튼 동작 및 권한 차단 시 자동 선택 fallback 확인
 - 기본 배포 모델 `gpt-5.4-nano` 적용
 - 개인정보/상담 기록/수행평가 피드백 상세 예시 화면 확인
-- e2b 샘플 데모 확인
+- e4b 샘플 데모 확인
 
 ## GitHub 배포 전 정리 기준
 

@@ -1,5 +1,5 @@
 export const DEFAULT_LLM_ENDPOINT = "/v1";
-export const DEFAULT_LLM_MODEL_ID = "google/gemma-4-e2b";
+export const DEFAULT_LLM_MODEL_ID = "google/gemma-4-e4b";
 export const OPENAI_LLM_ENDPOINT = "/openai/v1";
 export const DEFAULT_OPENAI_MODEL_ID = "gpt-5.4-nano";
 

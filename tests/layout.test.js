@@ -80,7 +80,7 @@ test("left panel restores the original ten-step flow preview", () => {
 test("AI status controls are grouped in a clear box", () => {
   assert.match(html, /class="ai-status-box"/);
   assert.match(html, /<span class="ai-status-label">AI 상태<\/span>/);
-  assert.match(html, /class="ai-status-box"[^>]*aria-label="AI 상태"[\s\S]*<span class="ai-status-label">AI 상태<\/span>[\s\S]*class="ai-status-value"[\s\S]*id="llmStatusBadge"[\s\S]*id="llmModelBadge"[\s\S]*기본 모델[\s\S]*id="localModelButton" class="mode-button"[\s\S]*>e2b<\/button>[\s\S]*id="openAiModelButton" class="mode-button is-active"[\s\S]*>5\.4 nano<\/button>/);
+  assert.match(html, /class="ai-status-box"[^>]*aria-label="AI 상태"[\s\S]*<span class="ai-status-label">AI 상태<\/span>[\s\S]*class="ai-status-value"[\s\S]*id="llmStatusBadge"[\s\S]*id="llmModelBadge"[\s\S]*기본 모델[\s\S]*id="localModelButton" class="mode-button"[\s\S]*>e4b<\/button>[\s\S]*id="openAiModelButton" class="mode-button is-active"[\s\S]*>5\.4 nano<\/button>/);
   assert.doesNotMatch(html, /id="modelStatusBadge"|id="retryLlmButton"|AI 확인|답변 가능|답변 준비 중/);
   assert.match(css, /\.title-row,\s*\.guide-mode-box,\s*\.ai-status-box,\s*\.guide-mode-options,\s*\.ai-status-value\s*{[^}]*display:\s*flex/s);
   assert.match(css, /\.status-cluster\s*{[^}]*align-items:\s*center/s);

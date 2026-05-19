@@ -116,7 +116,7 @@ function resetMobileTopbar() {
 
 function createDemoStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("testScenario") === "e2bClassRules") return createE2bClassRulesDemoState();
+  if (params.get("testScenario") === "e4bClassRules") return createE4bClassRulesDemoState();
   if (params.get("testScenario") === "nanoPrivacyDetailed") return createNanoPrivacyDetailedDemoState();
   if (params.get("testScenario") !== "privacy") return null;
 
@@ -292,7 +292,7 @@ function createNanoPrivacyDetailedDemoState() {
   });
 }
 
-function createE2bClassRulesDemoState() {
+function createE4bClassRulesDemoState() {
   settings = { ...settings, llmProvider: "local", llmEndpoint: DEFAULT_LLM_ENDPOINT, llmModelId: LOCAL_MODEL_ID };
   const demoState = {
     ...createInitialState(),
@@ -535,8 +535,8 @@ async function chatCompletionWithRetry(request) {
 }
 
 function maxTokensForTask(task) {
-  const isLocalE2b = settings.llmProvider === "local" && /e2b/i.test(settings.llmModelId || "");
-  if (isLocalE2b) return task === "revision" ? 4096 : 3072;
+  const isLocalE4b = settings.llmProvider === "local" && /e4b/i.test(settings.llmModelId || "");
+  if (isLocalE4b) return 4096;
   return task === "revision" ? 8192 : 4096;
 }
 
@@ -787,7 +787,7 @@ function handleSetDefaultModel(provider) {
   const result = writeSettings(settings);
   if (!result.ok) ui.showToast("기본 모델 설정을 저장하지 못했습니다.");
   render();
-  ui.showToast(provider === "openai" ? "기본 모델을 5.4 nano로 바꿨습니다." : "기본 모델을 e2b로 바꿨습니다.");
+  ui.showToast(provider === "openai" ? "기본 모델을 5.4 nano로 바꿨습니다." : "기본 모델을 e4b로 바꿨습니다.");
   checkLocalLlm();
 }
 

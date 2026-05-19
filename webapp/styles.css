@@ -261,7 +261,7 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.22);
   color: var(--color-ash-gray);
   font-family: var(--font-roboto-mono), ui-monospace, monospace;
-  font-size: var(--text-caption);
+  font-size: 12px;
 }
 
 .history-item.is-current .history-index {
@@ -279,8 +279,8 @@ button {
   margin: 0;
   color: var(--color-ash-gray);
   font-family: var(--font-roboto-mono), ui-monospace, monospace;
-  font-size: var(--text-caption);
-  line-height: 1.35;
+  font-size: 12.5px;
+  line-height: 1.42;
 }
 
 .history-item.is-current .history-question {

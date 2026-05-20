@@ -79,6 +79,25 @@ test("buildFinalPrompt summarizes adaptive conversation turns for teachers", () 
   assert.match(prompt, /교수학습평가와 개별 피드백/);
 });
 
+test("buildFinalPrompt uses adaptive conversation details instead of generic placeholders", () => {
+  const prompt = buildFinalPrompt({
+    initialRequest: "학생 이름, 학번, 수행평가 점수, 오답 기록, 교사 피드백을 관리하는 교사용 웹앱을 만들고 싶습니다.",
+    conversationTurns: [
+      { role: "user", text: "학생 이름, 학번, 수행평가 점수, 오답 기록, 교사 피드백을 관리하는 교사용 웹앱을 만들고 싶습니다." },
+      { role: "user", text: "교사가 평가 후 오답 유형과 피드백을 입력합니다. 학생은 본인에게 공개된 피드백과 다음 학습 과제만 봅니다." },
+      { role: "user", text: "실제 테스트에는 가명 데이터를 사용합니다." },
+      { role: "user", text: "개인정보보호와 학습지원 소프트웨어 심의 준비도 참고 안내에 정리해주세요." }
+    ]
+  });
+
+  assert.match(prompt, /필요한 산출물: 학생 이름, 학번, 수행평가 점수/);
+  assert.match(prompt, /사용 장면: 교사가 평가 후 오답 유형과 피드백을 입력/);
+  assert.match(prompt, /개인정보 및 민감정보 확인: 실제 테스트에는 가명 데이터/);
+  assert.match(prompt, /외부 서비스 사용 여부: 개인정보보호와 학습지원 소프트웨어 심의/);
+  assert.doesNotMatch(prompt, /필요한 산출물: 필요한 산출물/);
+  assert.doesNotMatch(prompt, /사용 장면: 사용 장면/);
+});
+
 test("buildFinalPrompt asks app-like outputs to be modularized by feature", () => {
   const prompt = buildFinalPrompt(completedSession);
 

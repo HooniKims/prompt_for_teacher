@@ -140,3 +140,23 @@ test("saved prompt revisions use the selected AI model", () => {
   assert.match(main, /chatCompletionWithRetry\(\{[\s\S]*endpoint:\s*settings\.llmEndpoint[\s\S]*model:\s*settings\.llmModelId[\s\S]*buildRevisionMessages/s);
   assert.match(main, /AI 수정 답변을 받지 못해 기본 방식/);
 });
+
+test("local model uses segmented final prompt generation without changing OpenAI flow", () => {
+  assert.match(main, /shouldUseSegmentedFinalPrompt\(\)/);
+  assert.match(main, /settings\.llmProvider === "local"/);
+  assert.match(main, /finalPromptMode:\s*shouldUseSegmentedFinalPrompt\(\) \? "segmented" : "single"/);
+  assert.match(main, /completeWithSegmentedFinalPrompt\(/);
+  assert.match(main, /buildSegmentedFinalPromptMessages/);
+  assert.match(main, /shouldCompleteLocalFlow\(text\)/);
+  assert.match(main, /isLocalFinalRequest\(text\)/);
+  assert.match(main, /최종|완성|만들어|정리/);
+  assert.match(main, /fallbackQuestionForCurrentState/);
+  assert.match(main, /hasEnoughLocalStepsForFinal/);
+  assert.match(main, /answeredAfterSeed >= steps\.length/);
+  assert.match(main, /async function completeWithSegmentedFinalPrompt/);
+  assert.match(main, /if \(!hasEnoughLocalStepsForFinal\(\)\)/);
+  assert.match(main, /setTimeout\(\(\) => controller\.abort\(\), 36000\)/);
+  assert.match(main, /settings\.llmProvider === "local" && task === "question"\) return 768/);
+  assert.match(main, /state\.completed && state\.finalPrompt/);
+  assert.match(main, /state\.activeStepIndex >= steps\.length/);
+});

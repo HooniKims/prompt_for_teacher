@@ -117,21 +117,18 @@ export function buildPrivacyCondition(answerMeta = {}) {
 
 function summarizeForTeacher(session = {}) {
   const answers = session.answers ?? {};
-  const userTurns = Array.isArray(session.conversationTurns)
-    ? session.conversationTurns
-        .filter((turn) => turn?.role === "user" && typeof turn.text === "string" && turn.text.trim())
-        .map((turn) => turn.text.trim())
-    : [];
+  const userTurns = userTurnTexts(session);
+  const detailTurns = userTurns.slice(1);
   const conversationSummary = userTurns.length
     ? userTurns.slice(0, 6).map((text) => `  - ${text}`).join("\n")
     : "  - 아직 대화에서 확인한 추가 내용이 없습니다.";
   const initialRequest = valueOrDefault(session.initialRequest, DEFAULTS.initialRequest);
   const output = valueOrDefault(answers.output, initialRequest || DEFAULTS.output);
-  const useScene = valueOrDefault(answers.useScene, DEFAULTS.useScene);
-  const context = valueOrDefault(answers.context, DEFAULTS.context);
-  const goal = valueOrDefault(answers.goal, DEFAULTS.goal);
-  const safety = valueOrDefault(answers.safety, DEFAULTS.safety);
-  const externalService = valueOrDefault(answers.externalService, DEFAULTS.externalService);
+  const useScene = valueOrDefault(answers.useScene, findTurnText(detailTurns, /교사|학생|로그인|평가|수업|피드백/) || DEFAULTS.useScene);
+  const context = valueOrDefault(answers.context, findTurnText(detailTurns, /초등|중학|고등|학년|수행평가|보충|학습|수업/) || DEFAULTS.context);
+  const goal = valueOrDefault(answers.goal, findTurnText(detailTurns, /목표|안내|관리|정리|제공|확인/) || DEFAULTS.goal);
+  const safety = valueOrDefault(answers.safety, findTurnText(detailTurns, /개인정보|학생 이름|학번|상담|가명|실제 학생/) || findTurnText(userTurns, /개인정보|학생 이름|학번|상담|가명|실제 학생/) || DEFAULTS.safety);
+  const externalService = valueOrDefault(answers.externalService, findTurnText(detailTurns, /외부|업체|서버|AI|로그인|심의|학교 내부/) || DEFAULTS.externalService);
 
   return `[교사용 요약]
 - 만들 것: ${output}
@@ -146,23 +143,37 @@ ${conversationSummary}
 - 교사가 특히 확인할 점: 실제 학생 정보 사용 여부, 학생이 직접 로그인하는지, 외부 서비스나 업체가 학생 데이터를 처리하는지, 학교 내부 검토가 필요한지`;
 }
 
+function userTurnTexts(session = {}) {
+  return Array.isArray(session.conversationTurns)
+    ? session.conversationTurns
+        .filter((turn) => turn?.role === "user" && typeof turn.text === "string" && turn.text.trim())
+        .map((turn) => turn.text.trim())
+    : [];
+}
+
+function findTurnText(turns = [], pattern) {
+  return turns.find((text) => pattern.test(text)) || "";
+}
+
 export function buildFinalPrompt(session = {}, options = {}) {
   const answers = session.answers ?? {};
   const answerMeta = session.answerMeta ?? {};
   const memoryContext = buildMemoryContext(options.memoryItems ?? []);
   const privacyConditions = buildPrivacyCondition(answerMeta);
+  const turns = userTurnTexts(session);
+  const detailTurns = turns.slice(1);
 
   const initialRequest = valueOrDefault(session.initialRequest, DEFAULTS.initialRequest);
-  const output = valueOrDefault(answers.output, DEFAULTS.output);
-  const useScene = valueOrDefault(answers.useScene, DEFAULTS.useScene);
-  const context = valueOrDefault(answers.context, DEFAULTS.context);
-  const goal = valueOrDefault(answers.goal, DEFAULTS.goal);
-  const teacherJudgment = valueOrDefault(answers.teacherJudgment, DEFAULTS.teacherJudgment);
-  const sourceMaterial = valueOrDefault(answers.sourceMaterial, DEFAULTS.sourceMaterial);
-  const safety = valueOrDefault(answers.safety, DEFAULTS.safety);
-  const externalService = valueOrDefault(answers.externalService, DEFAULTS.externalService);
-  const format = valueOrDefault(answers.format, DEFAULTS.format);
-  const quality = valueOrDefault(answers.quality, DEFAULTS.quality);
+  const output = valueOrDefault(answers.output, initialRequest || DEFAULTS.output);
+  const useScene = valueOrDefault(answers.useScene, findTurnText(detailTurns, /교사|학생|로그인|평가|수업|피드백/) || DEFAULTS.useScene);
+  const context = valueOrDefault(answers.context, findTurnText(detailTurns, /초등|중학|고등|학년|수행평가|보충|학습|수업/) || DEFAULTS.context);
+  const goal = valueOrDefault(answers.goal, findTurnText(detailTurns, /목표|안내|관리|정리|제공|확인/) || DEFAULTS.goal);
+  const teacherJudgment = valueOrDefault(answers.teacherJudgment, findTurnText(detailTurns, /교사.*정|직접|공개|보관|권한|범위/) || DEFAULTS.teacherJudgment);
+  const sourceMaterial = valueOrDefault(answers.sourceMaterial, findTurnText(detailTurns, /자료|명단|기준|목록|예시|가명/) || DEFAULTS.sourceMaterial);
+  const safety = valueOrDefault(answers.safety, findTurnText(detailTurns, /개인정보|학생 이름|학번|상담|가명|실제 학생/) || findTurnText(turns, /개인정보|학생 이름|학번|상담|가명|실제 학생/) || DEFAULTS.safety);
+  const externalService = valueOrDefault(answers.externalService, findTurnText(detailTurns, /외부|업체|서버|AI|로그인|심의|학교 내부/) || DEFAULTS.externalService);
+  const format = valueOrDefault(answers.format, findTurnText(detailTurns, /교사용 요약|AI 실행용|프롬프트|분리|화면|모듈/) || DEFAULTS.format);
+  const quality = valueOrDefault(answers.quality, findTurnText(detailTurns, /완성 기준|초보|개발 AI|바로|구체적|수준/) || DEFAULTS.quality);
 
   const sections = [
     memoryContext,

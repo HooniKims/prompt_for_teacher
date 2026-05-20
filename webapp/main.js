@@ -39,7 +39,7 @@ import {
   createLocalLlmSettings,
   listModels
 } from "./modules/localLlmClient.js?v=shared-llm-endpoint";
-import { buildNextQuestionMessages, parsePlannerResponse, quickOptionsForIntent } from "./modules/conversationPlanner.js";
+import { buildNextQuestionMessages, buildSegmentedFinalPromptMessages, parsePlannerResponse, quickOptionsForIntent } from "./modules/conversationPlanner.js";
 
 const WELCOME_MESSAGE = "짧게 시작해도 괜찮습니다. 만들고 싶은 자료, 앱, 프로그램, 문서를 한 문장으로 적어주세요.\n\n예: 학급 규칙 안내문 만들고 싶어요.\n예: 우리 반 독서 기록 앱을 만들고 싶어요.\n예: 수행평가 루브릭을 만들 프롬프트가 필요해요.";
 
@@ -536,8 +536,62 @@ async function chatCompletionWithRetry(request) {
 
 function maxTokensForTask(task) {
   const isLocalE4b = settings.llmProvider === "local" && /e4b/i.test(settings.llmModelId || "");
-  if (isLocalE4b) return 4096;
+  if (settings.llmProvider === "local" && task === "question") return 768;
+  if (isLocalE4b) return task === "revision" ? 4096 : 1536;
   return task === "revision" ? 8192 : 4096;
+}
+
+function maxTokensForFinalSegment(segment) {
+  if (segment === "ai_prompt") return 1536;
+  return 900;
+}
+
+function shouldUseSegmentedFinalPrompt() {
+  return settings.llmProvider === "local";
+}
+
+function isLocalFinalRequest(text = "") {
+  return shouldUseSegmentedFinalPrompt() && /최종|완성|만들어|정리/.test(text);
+}
+
+function shouldCompleteLocalFlow(text = "") {
+  if (!shouldUseSegmentedFinalPrompt()) return false;
+  const userTurnCount = state.conversationTurns.filter((turn) => turn.role === "user").length;
+  return state.activeStepIndex >= steps.length || userTurnCount >= 10 || (userTurnCount >= 6 && isLocalFinalRequest(text));
+}
+
+function hasEnoughLocalStepsForFinal(currentState = state) {
+  if (!shouldUseSegmentedFinalPrompt()) return true;
+  const answeredAfterSeed = Array.isArray(currentState.conversationTurns)
+    ? currentState.conversationTurns.filter((turn) => turn?.role === "user" && turn?.source !== "seed" && turn?.text).length
+    : 0;
+  return answeredAfterSeed >= steps.length;
+}
+
+function inferNextStepIndex(currentState = state) {
+  const answeredAfterSeed = Array.isArray(currentState.conversationTurns)
+    ? currentState.conversationTurns.filter((turn) => turn?.role === "user" && turn?.source !== "seed" && turn?.text).length
+    : 0;
+  return Math.min(steps.length - 1, Math.max(0, answeredAfterSeed + 1));
+}
+
+function fallbackQuestionForCurrentState(currentState = state) {
+  const step = steps[inferNextStepIndex(currentState)] ?? steps[steps.length - 1];
+  return {
+    question: step.question,
+    suggestedOptions: step.options.map((option) => ({ ...option, optional: true })),
+    capturedFacts: currentState.intentProfile ?? {}
+  };
+}
+
+function appendQuestionToCurrentFlow(currentState, question) {
+  return appendAiQuestion(
+    {
+      ...currentState,
+      activeStepIndex: inferNextStepIndex(currentState)
+    },
+    question
+  );
 }
 
 async function checkLocalLlm() {
@@ -576,7 +630,7 @@ async function handleSubmit(text) {
     render();
     collapseMobileTopbarAfterInput();
     await requestNextQuestion();
-  } else if (state.completed) {
+  } else if (state.completed && state.finalPrompt) {
     await handleRevision(text);
     collapseMobileTopbarAfterInput();
   } else {
@@ -584,6 +638,10 @@ async function handleSubmit(text) {
     persistDraftIfNeeded();
     render();
     collapseMobileTopbarAfterInput();
+    if (isLocalFinalRequest(text) || shouldCompleteLocalFlow(text)) {
+      await completeWithSegmentedFinalPrompt();
+      return;
+    }
     await requestNextQuestion();
   }
 }
@@ -603,16 +661,32 @@ async function requestNextQuestion() {
   render();
 
   const selectedMemory = selectMemoryItems(memoryStore.items, settings);
+  const controller = shouldUseSegmentedFinalPrompt() && typeof AbortController === "function" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 36000) : null;
   const result = await chatCompletionWithRetry({
     endpoint: settings.llmEndpoint,
     model: settings.llmModelId,
-    messages: buildNextQuestionMessages({ seed: state.initialRequest, turns: state.conversationTurns, memoryItems: selectedMemory, guideMode: settings.guideMode }),
-    maxTokens: maxTokensForTask("question")
+    messages: buildNextQuestionMessages({
+      seed: state.initialRequest,
+      turns: state.conversationTurns,
+      memoryItems: selectedMemory,
+      guideMode: settings.guideMode,
+      finalPromptMode: shouldUseSegmentedFinalPrompt() ? "segmented" : "single"
+    }),
+    maxTokens: maxTokensForTask("question"),
+    signal: controller?.signal
   });
+  if (timeoutId) clearTimeout(timeoutId);
 
   if (generation !== requestGeneration) return;
 
   if (!result.ok) {
+    if (shouldUseSegmentedFinalPrompt()) {
+      state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
+      persistDraftIfNeeded();
+      render();
+      return;
+    }
     state = appendAssistantMessage(setAwaitingAi(state, false), result.message || "AI 답변을 받지 못했습니다. 잠시 후 한 번 더 입력해주세요.");
     persistDraftIfNeeded();
     render();
@@ -621,24 +695,96 @@ async function requestNextQuestion() {
 
   const parsed = parsePlannerResponse(result.content);
   if (!parsed.ok && result.truncated) {
-    await completeWithFinalPrompt(buildFinalPrompt(state, { memoryItems: selectedMemory }), "");
+    if (shouldUseSegmentedFinalPrompt() && hasEnoughLocalStepsForFinal()) {
+      await completeWithSegmentedFinalPrompt(selectedMemory);
+    } else if (shouldUseSegmentedFinalPrompt()) {
+      state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
+      persistDraftIfNeeded();
+      render();
+    } else {
+      await completeWithFinalPrompt(buildFinalPrompt(state, { memoryItems: selectedMemory }), "");
+    }
     return;
   }
 
   const value = parsed.ok ? parsed.value : parsed.fallback;
 
   if (value.kind === "final_prompt_ready") {
-    await completeWithFinalPrompt(value.finalPrompt, value.referenceNotes);
+    if (shouldUseSegmentedFinalPrompt() && hasEnoughLocalStepsForFinal()) {
+      await completeWithSegmentedFinalPrompt(selectedMemory);
+    } else if (shouldUseSegmentedFinalPrompt()) {
+      state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
+      persistDraftIfNeeded();
+      render();
+    } else {
+      await completeWithFinalPrompt(value.finalPrompt, value.referenceNotes);
+    }
     return;
   }
 
-  state = appendAiQuestion(setAwaitingAi(state, false), {
+  if (value.kind === "final_prompt_signal") {
+    if (hasEnoughLocalStepsForFinal()) {
+      await completeWithSegmentedFinalPrompt(selectedMemory);
+    } else {
+      state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
+      persistDraftIfNeeded();
+      render();
+    }
+    return;
+  }
+
+  state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), {
     question: value.question,
     suggestedOptions: value.suggestedOptions?.length ? value.suggestedOptions : quickOptionsForIntent(value.capturedFacts),
     capturedFacts: value.capturedFacts
   });
   persistDraftIfNeeded();
   render();
+}
+
+async function generateFinalSegment(segment, selectedMemory, fallbackText = "") {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 26000) : null;
+  const result = await chatCompletionWithRetry({
+    endpoint: settings.llmEndpoint,
+    model: settings.llmModelId,
+    messages: buildSegmentedFinalPromptMessages({
+      segment,
+      seed: state.initialRequest,
+      turns: state.conversationTurns,
+      memoryItems: selectedMemory
+    }),
+    maxTokens: maxTokensForFinalSegment(segment),
+    signal: controller?.signal
+  });
+  if (timeoutId) clearTimeout(timeoutId);
+
+  return result.ok && result.content ? result.content.trim() : fallbackText;
+}
+
+async function completeWithSegmentedFinalPrompt(selectedMemory = selectMemoryItems(memoryStore.items, settings)) {
+  if (!hasEnoughLocalStepsForFinal()) {
+    state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
+    persistDraftIfNeeded();
+    render();
+    return;
+  }
+
+  const fallbackPrompt = buildFinalPrompt(state, { memoryItems: selectedMemory });
+  const fallbackSections = splitFinalPromptSections(fallbackPrompt);
+  const requiredReferenceNotes = buildReferenceNotes(state.answerMeta, state);
+
+  const teacherSummary = await generateFinalSegment("teacher_summary", selectedMemory, fallbackSections.teacherSummary);
+  const aiPrompt = await generateFinalSegment("ai_prompt", selectedMemory, fallbackSections.aiPrompt);
+  const referenceNotesFromModel = await generateFinalSegment("reference_notes", selectedMemory, "");
+  const finalPrompt = ensureFinalPromptRequirements(`[교사용 요약]\n${teacherSummary.replace(/^\[교사용 요약\]\s*/m, "").trim()}\n\n[AI 실행용 프롬프트]\n${aiPrompt.replace(/^\[AI 실행용 프롬프트\]\s*/m, "").trim()}`, fallbackPrompt);
+  const referenceNotes = referenceNotesFromModel
+    ? `${requiredReferenceNotes}\n\nAI가 정리한 추가 참고:\n${referenceNotesFromModel}`.trim()
+    : requiredReferenceNotes;
+
+  state = completeState(setAwaitingAi(state, false), { finalPrompt, referenceNotes });
+  render();
+  saveCompletedState();
 }
 
 async function completeWithFinalPrompt(finalPromptFromModel, referenceNotesFromModel = "") {

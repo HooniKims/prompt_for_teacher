@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildFinalPromptMessages,
   buildNextQuestionMessages,
+  buildSegmentedFinalPromptMessages,
   parsePlannerResponse,
   quickOptionsForIntent
 } from "../webapp/modules/conversationPlanner.js";
@@ -43,6 +44,19 @@ test("buildNextQuestionMessages can switch to thorough grill-style checks", () =
   assert.match(content, /개인정보|외부 서비스|학습 콘텐츠 심의/);
 });
 
+test("buildNextQuestionMessages can ask local models for a short final signal", () => {
+  const messages = buildNextQuestionMessages({
+    seed: "학생 개인정보를 다루는 웹앱",
+    turns: [{ role: "user", text: "수행평가 기록을 관리합니다." }],
+    finalPromptMode: "segmented"
+  });
+  const content = messages.map((message) => message.content).join("\n");
+
+  assert.match(content, /final_prompt_signal/);
+  assert.match(content, /최종 프롬프트 본문을 작성하지 않는다/);
+  assert.doesNotMatch(content, /"finalPrompt":"복사 가능한 최종 프롬프트"/);
+});
+
 test("parsePlannerResponse accepts valid question JSON and limits quick options", () => {
   const parsed = parsePlannerResponse(JSON.stringify({
     kind: "question",
@@ -64,6 +78,17 @@ test("parsePlannerResponse returns recoverable fallback for invalid model output
   assert.equal(parsed.ok, false);
   assert.equal(parsed.fallback.kind, "question");
   assert.match(parsed.fallback.question, /질문만 일반 텍스트/);
+});
+
+test("parsePlannerResponse accepts a short final prompt signal", () => {
+  const parsed = parsePlannerResponse(JSON.stringify({
+    kind: "final_prompt_signal",
+    rationale: "필수 내용을 충분히 확인했습니다."
+  }));
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.value.kind, "final_prompt_signal");
+  assert.match(parsed.value.rationale, /충분히 확인/);
 });
 
 test("quickOptionsForIntent keeps choices optional and teacher-focused", () => {
@@ -92,6 +117,22 @@ test("buildFinalPromptMessages keeps prompt and reference guidance separate", ()
   assert.match(content, /기능별로 모듈화/);
   assert.match(content, /역할, 주요 기능, 입력 데이터, 출력 데이터/);
   assert.doesNotMatch(content, /실행 결과/);
+});
+
+test("buildSegmentedFinalPromptMessages creates focused Korean section prompts", () => {
+  const messages = buildSegmentedFinalPromptMessages({
+    segment: "ai_prompt",
+    seed: "학생 개인정보를 다루는 수행평가 웹앱",
+    turns: [{ role: "user", text: "점수와 오답 기록을 저장합니다." }],
+    memoryItems: [{ text: "교사용 요약은 짧게 유지한 적 있음" }]
+  });
+  const content = messages.map((message) => message.content).join("\n");
+
+  assert.match(content, /AI 실행용 프롬프트 부분만 작성/);
+  assert.match(content, /기능별 모듈/);
+  assert.match(content, /개인정보보호를 지키기 위한 구현 계획/);
+  assert.match(content, /한국어/);
+  assert.doesNotMatch(content, /교사용 요약 부분/);
 });
 
 test("parsePlannerResponse accepts fenced JSON returned by local models", () => {

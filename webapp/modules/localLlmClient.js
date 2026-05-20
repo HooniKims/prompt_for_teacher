@@ -72,6 +72,7 @@ export async function chatCompletion({
   messages = [],
   maxTokens = 1536,
   temperature = 0.4,
+  signal,
   fetchImpl = globalThis.fetch
 } = {}) {
   if (typeof fetchImpl !== "function") {
@@ -83,6 +84,7 @@ export async function chatCompletion({
     const response = await fetchImpl(`${base}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal,
       body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature })
     });
     const body = await readJson(response);

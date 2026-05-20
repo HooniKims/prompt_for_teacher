@@ -280,9 +280,17 @@ function renderConnection(elements, viewModel) {
     const modelId = viewModel.localModelId || viewModel.settings.llmModelId || "";
     const shouldShowModel = status === "ready" && modelId;
     elements.llmModelBadge.hidden = !shouldShowModel;
-    elements.llmModelBadge.textContent = shouldShowModel ? `모델: ${modelId}` : "";
+    elements.llmModelBadge.textContent = shouldShowModel ? `모델: ${formatModelBadgeLabel(modelId)}` : "";
     elements.llmModelBadge.title = shouldShowModel ? modelId : "";
   }
+}
+
+function formatModelBadgeLabel(modelId = "") {
+  const normalized = String(modelId).toLowerCase();
+  if (normalized.includes("gpt-5.4-nano")) return "5.4 nano";
+  if (normalized.includes("gemma-4-e4b") || normalized.includes("e4b")) return "e4b";
+  if (normalized.includes("gemma-4-e2b") || normalized.includes("e2b")) return "e2b";
+  return modelId;
 }
 
 function renderTheme(elements, viewModel) {
@@ -333,7 +341,7 @@ function renderInput(elements, viewModel) {
   } else if (blocked) {
     elements.messageInput.placeholder = "AI 준비가 끝나면 시작할 수 있습니다.";
   } else if (!viewModel.state.initialRequest) {
-    elements.messageInput.placeholder = "만들고 싶은 자료, 앱, 프로그램을 짧게 적어주세요.";
+    elements.messageInput.placeholder = "만들고 싶은 것을 짧게 적어주세요.";
   } else if (viewModel.state.completed) {
     elements.messageInput.placeholder = "수정하고 싶은 부분을 적어주세요.";
   } else {

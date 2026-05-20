@@ -24,6 +24,7 @@ test("buildNextQuestionMessages frames a short seed as teacher-focused creation 
   assert.match(content, /요구사항 정의서 수준으로 상세하게 작성/);
   assert.match(content, /개인정보보호를 지키기 위한 구현 계획/);
   assert.match(content, /심의 대응에 필요한 구현 계획/);
+  assert.match(content, /교사 단독 행정·업무용인지/);
   assert.match(content, /규정 설명은 참고 안내로 분리/);
   assert.match(content, /기능별 모듈화/);
   assert.match(content, /인증과 권한|데이터 모델|테스트/);
@@ -111,6 +112,8 @@ test("buildFinalPromptMessages keeps prompt and reference guidance separate", ()
 
   assert.match(content, /최종 프롬프트/);
   assert.match(content, /참고 안내/);
+  assert.match(content, /교사 단독 행정·업무·수업 준비용 도구는 심의 제외/);
+  assert.match(content, /정규 수업에서 학생과 함께 쓰며 개인정보를 수집·처리하는 도구는 심의 필요/);
   assert.match(content, /AI 실행용 프롬프트는 실제 제작 AI가 바로 작업할 수 있도록 상세하게 작성/);
   assert.match(content, /테스트 기준, 완료 기준/);
   assert.match(content, /준수하기 위한 화면, 권한, 저장, 삭제, 로그, 내보내기 기능 계획/);
@@ -131,6 +134,7 @@ test("buildSegmentedFinalPromptMessages creates focused Korean section prompts",
   assert.match(content, /AI 실행용 프롬프트 부분만 작성/);
   assert.match(content, /기능별 모듈/);
   assert.match(content, /개인정보보호를 지키기 위한 구현 계획/);
+  assert.match(content, /사용 목적이 교사 단독 행정·업무용인지/);
   assert.match(content, /한국어/);
   assert.doesNotMatch(content, /교사용 요약 부분/);
 });

@@ -124,8 +124,10 @@ test("buildReferenceNotes returns privacy and Ministry guidance for risk metadat
   assert.match(notes, /학생 이름, 학번, 점수, 오답 기록, 학습 활동 기록/);
   assert.match(notes, /수집 항목, 이용 목적, 보관 기간/);
   assert.match(notes, /학습지원 소프트웨어 심의 관련 고려할 점/);
-  assert.match(notes, /교원 의견수렴, 기준 충족 여부 확인, 학교운영위원회 심의, 최종 확정/);
-  assert.match(notes, /학생이 로그인/);
+  assert.match(notes, /교사 단독 행정·업무·수업 준비용 도구는 보통 심의 제외/);
+  assert.match(notes, /정규 교과 수업에서 학생과 함께 쓰고/);
+  assert.match(notes, /개인정보 보호 5개 필수 기준 체크리스트/);
+  assert.match(notes, /로그인, 기록 저장, 점수, 활동 로그/);
   assert.ok(notes.split("\n").length <= 14);
 });
 
@@ -138,5 +140,6 @@ test("buildReferenceNotes always includes strict privacy and learning software p
   assert.match(notes, /개인정보보호 고려할 점/);
   assert.match(notes, /내부 ID, 가명, 예시 데이터, 마스킹된 정보/);
   assert.match(notes, /학습지원 소프트웨어 심의 관련 고려할 점/);
-  assert.match(notes, /평가, 진단, 피드백, 추천 기능/);
+  assert.match(notes, /개인정보 수집이 전혀 없는 단순 웹앱/);
+  assert.match(notes, /학생 참여형 과제나 수업용으로 용도가 바뀌고 개인정보를 수집/);
 });

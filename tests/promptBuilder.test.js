@@ -107,6 +107,7 @@ test("buildFinalPrompt asks app-like outputs to be modularized by feature", () =
   assert.match(prompt, /요구사항 정의서 수준/);
   assert.match(prompt, /개인정보보호를 지키기 위한 구현 계획/);
   assert.match(prompt, /심의 대응에 필요한 구현 계획/);
+  assert.match(prompt, /교사 단독 행정·업무용인지, 정규 수업에서 학생과 함께 쓰는지/);
 });
 
 test("ensureFinalPromptRequirements adds Korean and module requirements to model output", () => {
@@ -200,7 +201,8 @@ test("buildFinalPrompt includes privacy and external-service constraints when ri
   });
 
   assert.match(prompt, /개인정보보호 구현 계획에는 내부 ID 또는 가명 사용/);
-  assert.match(prompt, /심의 대응 구현 계획에는 수집 항목, 이용 목적, 보관 기간/);
+  assert.match(prompt, /심의 대응 구현 계획에는 사용 목적 분류/);
+  assert.match(prompt, /수집 항목, 이용 목적, 보관 기간/);
 });
 
 test("buildPrivacyCondition includes privacy constraints for privacy risk", () => {
@@ -216,7 +218,8 @@ test("buildPrivacyCondition includes external-service constraints for learningCo
     externalService: { id: "B", label: "학습 콘텐츠를 외부 도구에서 사용", risk: "learningContent" }
   }).join("\n");
 
-  assert.match(conditions, /심의 대응 구현 계획에는 수집 항목, 이용 목적, 보관 기간/);
+  assert.match(conditions, /심의 대응 구현 계획에는 사용 목적 분류/);
+  assert.match(conditions, /정규 수업에서 학생과 함께 쓰는지/);
 });
 
 test("buildMemoryContext formats prior memory as a soft preference, not a fact", () => {

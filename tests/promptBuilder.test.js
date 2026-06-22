@@ -125,6 +125,9 @@ test("ensureFinalPromptRequirements adds Korean and module requirements to model
   assert.match(prompt, /상세 작성 조건/);
   assert.match(prompt, /테스트 기준, 완료 기준/);
   assert.match(prompt, /규정 자체의 설명은 참고 안내로 분리/);
+  assert.match(prompt, /푸터 및 정책 문서/);
+  assert.match(prompt, /개인정보 처리방침/);
+  assert.match(prompt, /이용약관/);
 });
 
 test("ensureFinalPromptRequirements preserves Korean teacher summary from model output", () => {
@@ -203,6 +206,27 @@ test("buildFinalPrompt includes privacy and external-service constraints when ri
   assert.match(prompt, /개인정보보호 구현 계획에는 내부 ID 또는 가명 사용/);
   assert.match(prompt, /심의 대응 구현 계획에는 사용 목적 분류/);
   assert.match(prompt, /수집 항목, 이용 목적, 보관 기간/);
+});
+
+test("buildFinalPrompt includes footer privacy policy and terms requirements", () => {
+  const prompt = buildFinalPrompt({
+    initialRequest: "학생이 로그인하는 수학 진단 웹앱",
+    answers: {
+      output: "웹앱 또는 웹사이트",
+      safety: "학생 이름과 점수를 저장합니다.",
+      externalService: "학생이 직접 로그인합니다."
+    },
+    answerMeta: {
+      safety: { risk: "privacy" },
+      externalService: { risk: "learningSoftware" }
+    }
+  });
+
+  assert.match(prompt, /푸터 및 정책 문서/);
+  assert.match(prompt, /개인정보 처리방침/);
+  assert.match(prompt, /이용약관/);
+  assert.match(prompt, /표준 개인정보 처리방침 작성지침/);
+  assert.match(prompt, /디지털콘텐츠 중개 표준약관/);
 });
 
 test("buildPrivacyCondition includes privacy constraints for privacy risk", () => {

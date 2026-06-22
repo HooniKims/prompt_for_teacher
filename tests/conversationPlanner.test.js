@@ -31,6 +31,21 @@ test("buildNextQuestionMessages frames a short seed as teacher-focused creation 
   assert.match(content, /JSON/);
 });
 
+test("buildNextQuestionMessages includes natural regulation-informed service questions", () => {
+  const messages = buildNextQuestionMessages({
+    seed: "학생들이 쓰는 수학 진단 웹앱을 만들고 싶어",
+    turns: [],
+    guideMode: "thorough"
+  });
+  const content = messages.map((message) => message.content).join("\n");
+
+  assert.match(content, /단도직입적으로 심의 대상인지 묻지 말고/);
+  assert.match(content, /학생이 직접 사용하는 장면/);
+  assert.match(content, /로그인, 답안 제출, 점수, 활동 기록/);
+  assert.match(content, /개인정보 처리방침/);
+  assert.match(content, /이용약관/);
+});
+
 test("buildNextQuestionMessages can switch to thorough grill-style checks", () => {
   const messages = buildNextQuestionMessages({
     seed: "학생 개인정보를 받는 앱",
@@ -119,6 +134,9 @@ test("buildFinalPromptMessages keeps prompt and reference guidance separate", ()
   assert.match(content, /준수하기 위한 화면, 권한, 저장, 삭제, 로그, 내보내기 기능 계획/);
   assert.match(content, /기능별로 모듈화/);
   assert.match(content, /역할, 주요 기능, 입력 데이터, 출력 데이터/);
+  assert.match(content, /푸터/);
+  assert.match(content, /개인정보 처리방침/);
+  assert.match(content, /이용약관/);
   assert.doesNotMatch(content, /실행 결과/);
 });
 
@@ -137,6 +155,20 @@ test("buildSegmentedFinalPromptMessages creates focused Korean section prompts",
   assert.match(content, /사용 목적이 교사 단독 행정·업무용인지/);
   assert.match(content, /한국어/);
   assert.doesNotMatch(content, /교사용 요약 부분/);
+});
+
+test("buildSegmentedFinalPromptMessages asks AI prompt segment for footer policy links", () => {
+  const messages = buildSegmentedFinalPromptMessages({
+    segment: "ai_prompt",
+    seed: "학생 로그인 웹앱",
+    turns: [{ role: "user", text: "풀이 기록과 점수를 저장합니다." }]
+  });
+  const content = messages.map((message) => message.content).join("\n");
+
+  assert.match(content, /푸터/);
+  assert.match(content, /개인정보 처리방침/);
+  assert.match(content, /이용약관/);
+  assert.match(content, /표준 개인정보 처리방침/);
 });
 
 test("parsePlannerResponse accepts fenced JSON returned by local models", () => {

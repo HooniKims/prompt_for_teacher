@@ -1,3 +1,8 @@
+import {
+  buildFooterPolicyPrompt,
+  buildRegulationPromptRequirements
+} from "./regulationKnowledge.js";
+
 const DEFAULTS = {
   initialRequest: "사용자가 입력한 요청",
   output: "필요한 산출물",
@@ -73,6 +78,7 @@ ${confirmed}
 }
 
 function detailedExecutionGuideSection() {
+  const regulationPromptRequirements = buildRegulationPromptRequirements();
   return `[상세 작성 조건]
 - AI 실행용 프롬프트는 짧은 요약이 아니라, 개발자나 제작 AI가 바로 실행할 수 있는 요구사항 정의서 수준으로 작성한다.
 - 반드시 다음 항목을 구체적으로 포함한다: 사용자 역할, 핵심 기능, 화면 흐름, 기능별 모듈, 데이터 모델, 권한 설계, 개인정보보호를 지키기 위한 구현 계획, 심의 대응에 필요한 구현 계획, 테스트 기준, 완료 기준.
@@ -81,7 +87,8 @@ function detailedExecutionGuideSection() {
 - 개인정보보호와 학습지원 소프트웨어 심의 규정 자체의 설명은 참고 안내로 분리하고, 여기에는 그 기준을 지키기 위한 화면, 권한, 저장, 삭제, 로그, 내보내기 기능 계획만 적는다.
 - 심의 대응 구현 계획에는 사용 목적이 교사 단독 행정·업무용인지, 정규 수업에서 학생과 함께 쓰는지, 학생 개인정보를 수집·처리하는지 확인하는 체크리스트나 설정 화면을 포함한다.
 - 기능별 모듈은 서로 독립적으로 수정할 수 있게 역할, 주요 기능, 입력 데이터, 출력 데이터, 예외 상황, 수정 시 주의할 점을 적는다.
-- 구현 지시는 막연한 표현보다 체크리스트, 표, 단계별 작업 목록처럼 바로 옮겨 쓸 수 있는 형태를 우선한다.`;
+- 구현 지시는 막연한 표현보다 체크리스트, 표, 단계별 작업 목록처럼 바로 옮겨 쓸 수 있는 형태를 우선한다.
+${regulationPromptRequirements}`;
 }
 
 export function buildMemoryContext(memoryItems = []) {
@@ -220,6 +227,7 @@ ${privacyConditions.map((condition) => `- ${condition}`).join("\n")}`,
 - ${quality}
 - 표현은 교사가 바로 검토하고 고칠 수 있게 명확해야 한다.
 - 막연한 조언보다 실제 문장, 표, 체크리스트처럼 옮겨 쓸 수 있는 형태를 우선한다.`,
+    buildFooterPolicyPrompt(),
     `[정보가 부족할 때]
 - 중요한 정보가 부족하면 추측하지 말고 확인 질문을 먼저 하라.
 - 확인 질문은 한 번에 너무 많이 묻지 말고, 결과물 품질에 가장 큰 영향을 주는 질문부터 제시하라.`
@@ -254,6 +262,10 @@ export function ensureFinalPromptRequirements(prompt = "", fallbackPrompt = "") 
 
   if (!hasDetailedExecutionGuide(nextPrompt)) {
     nextPrompt = insertAfterAiPromptHeading(nextPrompt, detailedExecutionGuideSection());
+  }
+
+  if (!/푸터\s*및\s*정책\s*문서/.test(nextPrompt)) {
+    nextPrompt = insertAfterAiPromptHeading(nextPrompt, buildFooterPolicyPrompt());
   }
 
   return nextPrompt.replace(/\n{3,}/g, "\n\n").trim();

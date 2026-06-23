@@ -42,6 +42,8 @@ import {
 import { buildNextQuestionMessages, buildSegmentedFinalPromptMessages, parsePlannerResponse, quickOptionsForIntent } from "./modules/conversationPlanner.js";
 
 const WELCOME_MESSAGE = "짧게 시작해도 괜찮습니다. 만들고 싶은 자료, 앱, 프로그램, 문서를 한 문장으로 적어주세요.\n\n예: 학급 규칙 안내문 만들고 싶어요.\n예: 우리 반 독서 기록 앱을 만들고 싶어요.\n예: 수행평가 루브릭을 만들 프롬프트가 필요해요.";
+const MIN_REQUIRED_QUESTIONS = steps.length;
+const MAX_TOTAL_QUESTIONS = 15;
 
 let settings = readSettings();
 let memoryStore = readMemoryStore();
@@ -554,25 +556,35 @@ function isLocalFinalRequest(text = "") {
   return shouldUseSegmentedFinalPrompt() && /최종|완성|만들어|정리/.test(text);
 }
 
+function answeredQuestionCount(currentState = state) {
+  return Array.isArray(currentState.conversationTurns)
+    ? currentState.conversationTurns.filter((turn) => turn?.role === "user" && turn?.source !== "seed" && turn?.text).length
+    : 0;
+}
+
 function shouldCompleteLocalFlow(text = "") {
   if (!shouldUseSegmentedFinalPrompt()) return false;
   const userTurnCount = state.conversationTurns.filter((turn) => turn.role === "user").length;
-  return state.activeStepIndex >= steps.length || userTurnCount >= 10 || (userTurnCount >= 6 && isLocalFinalRequest(text));
+  return answeredQuestionCount() >= MAX_TOTAL_QUESTIONS || userTurnCount >= MAX_TOTAL_QUESTIONS + 1 || (hasEnoughAnswersForFinal() && isLocalFinalRequest(text));
 }
 
 function hasEnoughLocalStepsForFinal(currentState = state) {
   if (!shouldUseSegmentedFinalPrompt()) return true;
-  const answeredAfterSeed = Array.isArray(currentState.conversationTurns)
-    ? currentState.conversationTurns.filter((turn) => turn?.role === "user" && turn?.source !== "seed" && turn?.text).length
-    : 0;
-  return answeredAfterSeed >= steps.length;
+  const answeredAfterSeed = answeredQuestionCount(currentState);
+  return answeredAfterSeed >= MIN_REQUIRED_QUESTIONS;
+}
+
+function hasEnoughAnswersForFinal(currentState = state) {
+  return answeredQuestionCount(currentState) >= MIN_REQUIRED_QUESTIONS;
+}
+
+function hasReachedQuestionLimit(currentState = state) {
+  return answeredQuestionCount(currentState) >= MAX_TOTAL_QUESTIONS;
 }
 
 function inferNextStepIndex(currentState = state) {
-  const answeredAfterSeed = Array.isArray(currentState.conversationTurns)
-    ? currentState.conversationTurns.filter((turn) => turn?.role === "user" && turn?.source !== "seed" && turn?.text).length
-    : 0;
-  return Math.min(steps.length - 1, Math.max(0, answeredAfterSeed + 1));
+  const answeredAfterSeed = answeredQuestionCount(currentState);
+  return Math.min(steps.length - 1, Math.max(0, answeredAfterSeed));
 }
 
 function fallbackQuestionForCurrentState(currentState = state) {
@@ -652,10 +664,23 @@ async function handleOption(option) {
   persistDraftIfNeeded();
   render();
   collapseMobileTopbarAfterInput();
+  if (shouldCompleteLocalFlow(option.label)) {
+    await completeWithSegmentedFinalPrompt();
+    return;
+  }
   await requestNextQuestion();
 }
 
 async function requestNextQuestion() {
+  if (hasReachedQuestionLimit()) {
+    if (shouldUseSegmentedFinalPrompt()) {
+      await completeWithSegmentedFinalPrompt();
+    } else {
+      await completeWithFinalPrompt(buildFinalPrompt(state, { memoryItems: selectMemoryItems(memoryStore.items, settings) }), "");
+    }
+    return;
+  }
+
   const generation = ++requestGeneration;
   state = setAwaitingAi(state, true);
   render();
@@ -695,9 +720,9 @@ async function requestNextQuestion() {
 
   const parsed = parsePlannerResponse(result.content);
   if (!parsed.ok && result.truncated) {
-    if (shouldUseSegmentedFinalPrompt() && hasEnoughLocalStepsForFinal()) {
+    if (hasEnoughAnswersForFinal() && shouldUseSegmentedFinalPrompt()) {
       await completeWithSegmentedFinalPrompt(selectedMemory);
-    } else if (shouldUseSegmentedFinalPrompt()) {
+    } else if (!hasEnoughAnswersForFinal()) {
       state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
       persistDraftIfNeeded();
       render();
@@ -710,12 +735,12 @@ async function requestNextQuestion() {
   const value = parsed.ok ? parsed.value : parsed.fallback;
 
   if (value.kind === "final_prompt_ready") {
-    if (shouldUseSegmentedFinalPrompt() && hasEnoughLocalStepsForFinal()) {
-      await completeWithSegmentedFinalPrompt(selectedMemory);
-    } else if (shouldUseSegmentedFinalPrompt()) {
+    if (!hasEnoughAnswersForFinal()) {
       state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
       persistDraftIfNeeded();
       render();
+    } else if (shouldUseSegmentedFinalPrompt()) {
+      await completeWithSegmentedFinalPrompt(selectedMemory);
     } else {
       await completeWithFinalPrompt(value.finalPrompt, value.referenceNotes);
     }
@@ -723,7 +748,7 @@ async function requestNextQuestion() {
   }
 
   if (value.kind === "final_prompt_signal") {
-    if (hasEnoughLocalStepsForFinal()) {
+    if (hasEnoughAnswersForFinal()) {
       await completeWithSegmentedFinalPrompt(selectedMemory);
     } else {
       state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());

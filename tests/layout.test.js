@@ -57,9 +57,9 @@ test("mobile layout keeps chat primary and opens side panels on demand", () => {
   assert.match(main, /currentScrollTop\(\) <= 4/);
 });
 
-test("left panel restores the original ten-step flow preview", () => {
+test("left panel keeps the checklist preview without forcing ten-step completion copy", () => {
   const visibleCopy = `${html}\n${userFacingStrings(ui)}\n${userFacingStrings(main)}`;
-  assert.match(visibleCopy, /10단계/);
+  assert.match(visibleCopy, /10단계 질문을 마치면/);
   assert.match(visibleCopy, /예: 학급 규칙 안내문 만들고 싶어요/);
   assert.match(visibleCopy, /예: 우리 반 독서 기록 앱을 만들고 싶어요/);
   assert.match(visibleCopy, /예: 수행평가 루브릭을 만들 프롬프트가 필요해요/);
@@ -151,12 +151,16 @@ test("local model uses segmented final prompt generation without changing OpenAI
   assert.match(main, /isLocalFinalRequest\(text\)/);
   assert.match(main, /최종|완성|만들어|정리/);
   assert.match(main, /fallbackQuestionForCurrentState/);
+  assert.match(main, /MIN_REQUIRED_QUESTIONS\s*=\s*steps\.length/);
+  assert.match(main, /MAX_TOTAL_QUESTIONS\s*=\s*15/);
   assert.match(main, /hasEnoughLocalStepsForFinal/);
-  assert.match(main, /answeredAfterSeed >= steps\.length/);
+  assert.match(main, /answeredAfterSeed >= MIN_REQUIRED_QUESTIONS/);
+  assert.match(main, /if \(hasReachedQuestionLimit\(\)\)/);
+  assert.match(main, /handleOption[\s\S]*shouldCompleteLocalFlow\(option\.label\)/);
   assert.match(main, /async function completeWithSegmentedFinalPrompt/);
   assert.match(main, /if \(!hasEnoughLocalStepsForFinal\(\)\)/);
   assert.match(main, /setTimeout\(\(\) => controller\.abort\(\), 36000\)/);
   assert.match(main, /settings\.llmProvider === "local" && task === "question"\) return 768/);
   assert.match(main, /state\.completed && state\.finalPrompt/);
-  assert.match(main, /state\.activeStepIndex >= steps\.length/);
+  assert.match(main, /answeredQuestionCount\(\) >= MAX_TOTAL_QUESTIONS/);
 });

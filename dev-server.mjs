@@ -150,21 +150,21 @@ function configuredOpenAiModel() {
 }
 
 async function proxyOpenAi(request, response) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const incomingUrl = new URL(request.url, `http://${request.headers.host || `${HOST}:${PORT}`}`);
+  const upstreamPath = incomingUrl.pathname.replace(/^\/openai/, "");
 
-  if (!apiKey) {
-    send(response, 500, JSON.stringify({ error: "OpenAI API key is missing" }), {
+  if (request.method === "GET" && upstreamPath === "/v1/models") {
+    send(response, 200, JSON.stringify({ data: [{ id: configuredOpenAiModel(), object: "model" }] }), {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*"
     });
     return;
   }
 
-  const incomingUrl = new URL(request.url, `http://${request.headers.host || `${HOST}:${PORT}`}`);
-  const upstreamPath = incomingUrl.pathname.replace(/^\/openai/, "");
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
 
-  if (request.method === "GET" && upstreamPath === "/v1/models") {
-    send(response, 200, JSON.stringify({ data: [{ id: configuredOpenAiModel(), object: "model" }] }), {
+  if (!apiKey) {
+    send(response, 500, JSON.stringify({ error: "OpenAI API key is missing" }), {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*"
     });

@@ -842,8 +842,18 @@ function shouldUseSegmentedFinalPrompt() {
   return settings.llmProvider === "local";
 }
 
+function isExplicitFinalRequest(text = "") {
+  const normalized = String(text).replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  return /최종|완성|만들어|정리|생성|작성/.test(normalized)
+    || /여기까지만|여기까지|이 정도로|지금까지|현재까지/.test(normalized)
+    || /(질문|물어).*(그만|중단|끝|하지 마|안 해|안할|안 할)/.test(normalized)
+    || /(그만|중단|끝).*(질문|물어)/.test(normalized)
+    || /추가 질문.*(없|말|그만|중단|끝)/.test(normalized);
+}
+
 function isLocalFinalRequest(text = "") {
-  return shouldUseSegmentedFinalPrompt() && /최종|완성|만들어|정리/.test(text);
+  return shouldUseSegmentedFinalPrompt() && isExplicitFinalRequest(text);
 }
 
 function answeredQuestionCount(currentState = state) {
@@ -940,7 +950,11 @@ async function handleSubmit(text) {
     persistDraftIfNeeded();
     render();
     collapseMobileTopbarAfterInput();
-    if (isLocalFinalRequest(text) || shouldCompleteLocalFlow(text)) {
+    if (isExplicitFinalRequest(text)) {
+      await completeWithAvailableFinalPrompt({ allowIncomplete: true });
+      return;
+    }
+    if (shouldCompleteLocalFlow(text)) {
       await completeWithSegmentedFinalPrompt();
       return;
     }
@@ -954,6 +968,10 @@ async function handleOption(option) {
   persistDraftIfNeeded();
   render();
   collapseMobileTopbarAfterInput();
+  if (isExplicitFinalRequest(option.label)) {
+    await completeWithAvailableFinalPrompt({ allowIncomplete: true });
+    return;
+  }
   if (shouldCompleteLocalFlow(option.label)) {
     await completeWithSegmentedFinalPrompt();
     return;
@@ -1077,8 +1095,17 @@ async function generateFinalSegment(segment, selectedMemory, fallbackText = "") 
   return result.ok && result.content ? result.content.trim() : fallbackText;
 }
 
-async function completeWithSegmentedFinalPrompt(selectedMemory = selectMemoryItems(memoryStore.items, settings)) {
-  if (!hasEnoughLocalStepsForFinal()) {
+async function completeWithAvailableFinalPrompt({ allowIncomplete = false } = {}) {
+  const selectedMemory = selectMemoryItems(memoryStore.items, settings);
+  if (shouldUseSegmentedFinalPrompt()) {
+    await completeWithSegmentedFinalPrompt(selectedMemory, { allowIncomplete });
+    return;
+  }
+  await completeWithFinalPrompt(buildFinalPrompt(state, { memoryItems: selectedMemory }), "");
+}
+
+async function completeWithSegmentedFinalPrompt(selectedMemory = selectMemoryItems(memoryStore.items, settings), { allowIncomplete = false } = {}) {
+  if (!allowIncomplete && !hasEnoughLocalStepsForFinal()) {
     state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), fallbackQuestionForCurrentState());
     persistDraftIfNeeded();
     render();

@@ -152,8 +152,11 @@ test("local model uses segmented final prompt generation without changing OpenAI
   assert.match(main, /completeWithSegmentedFinalPrompt\(/);
   assert.match(main, /buildSegmentedFinalPromptMessages/);
   assert.match(main, /shouldCompleteLocalFlow\(text\)/);
-  assert.match(main, /isLocalFinalRequest\(text\)/);
-  assert.match(main, /최종|완성|만들어|정리/);
+  assert.match(main, /function isLocalFinalRequest\(text = ""\)/);
+  assert.match(main, /isExplicitFinalRequest\(text/);
+  assert.match(main, /최종\|완성\|만들어\|정리\|생성\|작성/);
+  assert.match(main, /여기까지만\|여기까지\|이 정도로\|지금까지\|현재까지/);
+  assert.match(main, /\(질문\|물어\)\.\*\(그만\|중단\|끝\|하지 마\|안 해\|안할\|안 할\)/);
   assert.match(main, /fallbackQuestionForCurrentState/);
   assert.match(main, /MIN_REQUIRED_QUESTIONS\s*=\s*steps\.length/);
   assert.match(main, /MAX_TOTAL_QUESTIONS\s*=\s*15/);
@@ -162,9 +165,11 @@ test("local model uses segmented final prompt generation without changing OpenAI
   assert.match(main, /if \(hasReachedQuestionLimit\(\)\)/);
   assert.match(main, /handleOption[\s\S]*shouldCompleteLocalFlow\(option\.label\)/);
   assert.match(main, /async function completeWithSegmentedFinalPrompt/);
-  assert.match(main, /if \(!hasEnoughLocalStepsForFinal\(\)\)/);
+  assert.match(main, /if \(!allowIncomplete && !hasEnoughLocalStepsForFinal\(\)\)/);
   assert.match(main, /setTimeout\(\(\) => controller\.abort\(\), 36000\)/);
   assert.match(main, /settings\.llmProvider === "local" && task === "question"\) return 768/);
   assert.match(main, /state\.completed && state\.finalPrompt/);
   assert.match(main, /answeredQuestionCount\(\) >= MAX_TOTAL_QUESTIONS/);
+  assert.match(main, /completeWithAvailableFinalPrompt\(\{ allowIncomplete: true \}\)/);
+  assert.match(main, /if \(!allowIncomplete && !hasEnoughLocalStepsForFinal\(\)\)/);
 });

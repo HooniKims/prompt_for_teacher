@@ -116,7 +116,9 @@ test("composer exposes a prominent restart button below the input", () => {
   assert.ok(restartIndex > topbarEnd);
   assert.ok(restartIndex > composerIndex);
   assert.match(ui, /restartButton: document\.getElementById\("restartButton"\)/);
-  assert.match(ui, /elements\.restartButton\?\.addEventListener\("click", handlers\.onClearDraft\)/);
+  assert.match(ui, /elements\.restartButton\?\.addEventListener\("click", \(\) =>/);
+  assert.match(ui, /window\.confirm\("현재 대화를 지우고 처음부터 다시 시작할까요\?"\)/);
+  assert.match(ui, /handlers\.onClearDraft\(\)/);
   assert.match(main, /requestGeneration \+= 1/);
   assert.match(css, /\.restart-button\s*{[^}]*grid-column:\s*1 \/ -1/s);
   assert.match(css, /\.restart-button\s*{[^}]*justify-self:\s*stretch/s);

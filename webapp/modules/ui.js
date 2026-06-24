@@ -69,7 +69,10 @@ export function createUi() {
       elements.clearMemoryButton.addEventListener("click", handlers.onClearMemory);
       elements.clearDraftButton.addEventListener("click", handlers.onClearDraft);
       elements.themeToggleButton?.addEventListener("click", handlers.onToggleTheme);
-      elements.restartButton?.addEventListener("click", handlers.onClearDraft);
+      elements.restartButton?.addEventListener("click", () => {
+        if (!window.confirm("현재 대화를 지우고 처음부터 다시 시작할까요?")) return;
+        handlers.onClearDraft();
+      });
       elements.friendlyModeButton?.addEventListener("click", () => handlers.onSetGuideMode("friendly"));
       elements.thoroughModeButton?.addEventListener("click", () => handlers.onSetGuideMode("thorough"));
       elements.localModelButton?.addEventListener("click", () => handlers.onSetDefaultModel?.("local"));

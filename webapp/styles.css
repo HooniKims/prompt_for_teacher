@@ -574,20 +574,37 @@ button {
 
 .restart-button {
   grid-column: 1 / -1;
-  justify-self: start;
-  min-height: 32px;
-  padding: 0;
-  color: var(--color-steel-gray);
-  background: transparent;
-  border: 0;
-  font-size: var(--text-caption);
+  justify-self: stretch;
+  min-height: 46px;
+  padding: 0 var(--spacing-20);
+  color: var(--color-pure-white);
+  background:
+    linear-gradient(135deg, rgba(204, 100, 55, 0.98), rgba(150, 65, 32, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(204, 100, 55, 0.22);
+  font-size: var(--text-body-sm);
+  font-weight: 700;
   line-height: 1;
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .restart-button:hover,
 .restart-button:focus-visible {
-  color: var(--color-pure-white);
+  border-color: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 18px 42px rgba(204, 100, 55, 0.32);
+  filter: brightness(1.05);
   outline: none;
+  transform: translateY(-2px);
+}
+
+.restart-button:active {
+  box-shadow: 0 8px 22px rgba(204, 100, 55, 0.22);
+  transform: translateY(0) scale(0.99);
 }
 
 .composer textarea {
@@ -758,6 +775,117 @@ button {
 .model-plan dd {
   margin-top: var(--spacing-4);
   color: var(--color-pure-white);
+}
+
+body.capture-all {
+  background: var(--theme-bg);
+}
+
+body.capture-all .app-shell {
+  min-height: auto;
+  grid-template-columns: 310px minmax(1180px, 1fr);
+}
+
+body.capture-all .history-panel,
+body.capture-all .workspace,
+body.capture-all .content-grid,
+body.capture-all .chat-panel,
+body.capture-all .chat-log,
+body.capture-all .result-panel {
+  min-height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+body.capture-all .history-panel {
+  position: relative;
+}
+
+body.capture-all .content-grid {
+  align-items: start;
+  grid-template-columns: minmax(560px, 0.9fr) minmax(620px, 1.1fr);
+}
+
+body.capture-all .composer,
+body.capture-all .saved-section,
+body.capture-all .memory-section,
+body.capture-all .model-plan {
+  display: none;
+}
+
+body.capture-all .chat-log,
+body.capture-all .result-panel,
+body.capture-all .topbar {
+  padding: var(--spacing-16);
+}
+
+body.capture-all .message-bubble,
+body.capture-all .prompt-preview,
+body.capture-all .reference-preview {
+  font-size: 12px;
+  line-height: 1.48;
+}
+
+body.capture-all .prompt-preview,
+body.capture-all .prompt-preview-split,
+body.capture-all .reference-preview {
+  min-height: 0;
+}
+
+body.capture-two .chat-log,
+body.capture-two .result-panel {
+  padding: 12px;
+}
+
+body.capture-two .chat-log {
+  gap: 8px;
+}
+
+body.capture-two .message-meta {
+  margin-bottom: 4px;
+}
+
+body.capture-two .message-bubble,
+body.capture-two .prompt-preview,
+body.capture-two .reference-preview {
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+body.capture-two .prompt-section,
+body.capture-two .reference-header {
+  margin-top: 12px;
+}
+
+body.capture-two .prompt-preview {
+  min-height: 220px;
+}
+
+body.capture-two .prompt-preview-split,
+body.capture-two .reference-preview {
+  min-height: 120px;
+}
+
+body.capture-two .model-plan {
+  display: none;
+}
+
+body.reference-focus .result-panel > .result-header:first-child,
+body.reference-focus .prompt-section,
+body.reference-focus #promptPreview,
+body.reference-focus .model-plan {
+  display: none;
+}
+
+body.reference-focus .reference-header {
+  margin-top: 0;
+}
+
+body.reference-focus .reference-preview {
+  min-height: 0;
+  font-size: 14px;
+  line-height: 1.56;
 }
 
 .toast {
@@ -1065,8 +1193,7 @@ button {
   }
 
   .restart-button {
-    min-height: 40px;
-    padding: 0 2px;
+    min-height: 48px;
   }
 }
 
@@ -1198,15 +1325,6 @@ body {
   border-color: var(--theme-border);
 }
 
-.restart-button {
-  color: var(--theme-subtle);
-}
-
-.restart-button:hover,
-.restart-button:focus-visible {
-  color: var(--theme-text);
-}
-
 .composer textarea:disabled,
 .send-button:disabled {
   cursor: not-allowed;
@@ -1279,23 +1397,38 @@ body {
   background: var(--theme-text);
 }
 
-/* Inline composer flow: keep the input directly after the GUIDE/conversation content. */
+/* Keep the restart action visible while the conversation scrolls. */
 .chat-panel {
-  overflow: auto;
+  overflow: hidden;
 }
 
 .chat-log {
-  flex: 0 0 auto;
-  min-height: auto;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   padding-bottom: var(--spacing-12);
 }
 
 .composer {
-  position: relative;
-  padding: 0 var(--spacing-24) var(--spacing-24);
-  background: transparent;
-  border-top: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  padding: var(--spacing-16) var(--spacing-24) var(--spacing-24);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--theme-panel) 88%, transparent), var(--theme-panel) 42%);
+  border-top: 1px solid var(--theme-border);
+  box-shadow: 0 -18px 40px color-mix(in srgb, var(--theme-bg) 78%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .restart-button {
+    transition: none;
+  }
+
+  .restart-button:hover,
+  .restart-button:focus-visible,
+  .restart-button:active {
+    transform: none;
+  }
 }
 
 @media (max-width: 820px) {

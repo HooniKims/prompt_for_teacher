@@ -12,11 +12,12 @@ function userFacingStrings(source) {
   return source.match(/"[^"]*"|'[^']*'|`[^`]*`/g)?.join("\n") ?? "";
 }
 
-test("chat composer participates in normal conversation flow instead of being pushed to bottom", () => {
-  assert.match(css, /\.chat-panel\s*{[^}]*overflow:\s*auto/s);
-  assert.match(css, /\.chat-log\s*{[^}]*flex:\s*0\s+0\s+auto/s);
-  assert.match(css, /\.chat-log\s*{[^}]*overflow:\s*visible/s);
-  assert.match(css, /\.composer\s*{[^}]*position:\s*relative/s);
+test("chat composer stays visible while the conversation scrolls", () => {
+  assert.match(css, /\.chat-panel\s*{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.chat-log\s*{[^}]*flex:\s*1\s+1\s+auto/s);
+  assert.match(css, /\.chat-log\s*{[^}]*overflow:\s*auto/s);
+  assert.match(css, /\.composer\s*{[^}]*position:\s*sticky/s);
+  assert.match(css, /\.composer\s*{[^}]*bottom:\s*0/s);
 });
 
 test("enabled composer focuses the textarea after render so teachers can type immediately", () => {
@@ -106,18 +107,21 @@ test("guide mode controls let teachers choose friendly or thorough questioning",
   assert.match(css, /\.mode-button\.is-active\s*{/);
 });
 
-test("composer exposes a mobile-friendly restart button below the input", () => {
+test("composer exposes a prominent restart button below the input", () => {
   const topbarEnd = html.indexOf("</header>");
   const restartIndex = html.indexOf('id="restartButton"');
   const composerIndex = html.indexOf('id="chatForm"');
 
-  assert.match(html, /<form id="chatForm" class="composer">[\s\S]*id="restartButton"[\s\S]*>처음부터 다시 시작<\/button>[\s\S]*<\/form>/);
+  assert.match(html, /<form id="chatForm" class="composer">[\s\S]*id="restartButton"[\s\S]*>[\s\S]*처음부터 다시 시작하기[\s\S]*<\/button>[\s\S]*<\/form>/);
   assert.ok(restartIndex > topbarEnd);
   assert.ok(restartIndex > composerIndex);
   assert.match(ui, /restartButton: document\.getElementById\("restartButton"\)/);
   assert.match(ui, /elements\.restartButton\?\.addEventListener\("click", handlers\.onClearDraft\)/);
   assert.match(main, /requestGeneration \+= 1/);
   assert.match(css, /\.restart-button\s*{[^}]*grid-column:\s*1 \/ -1/s);
+  assert.match(css, /\.restart-button\s*{[^}]*justify-self:\s*stretch/s);
+  assert.match(css, /\.restart-button:hover,\s*\.restart-button:focus-visible\s*{[^}]*transform:\s*translateY\(-2px\)/s);
+  assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)/);
 });
 
 test("final prompt view does not execute prompts or copy reference notes", () => {

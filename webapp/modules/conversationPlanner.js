@@ -37,25 +37,46 @@ export function quickOptionsForIntent(intentProfile = {}) {
   return labels.slice(0, 4).map((label, index) => ({ id: OPTION_IDS[index], label, optional: true }));
 }
 
-export function buildNextQuestionMessages({ seed = "", turns = [], memoryItems = [], guideMode = "friendly", finalPromptMode = "single" } = {}) {
+export function buildNextQuestionMessages({ seed = "", turns = [], memoryItems = [], guideMode = "friendly", finalPromptMode = "single", answers = {} } = {}) {
+  const confirmed = steps.filter((step) => safeText(answers?.[step.key]));
+  const missing = steps.filter((step) => !safeText(answers?.[step.key]));
+  const coverageStatus = missing.length
+    ? `확인된 항목 (${confirmed.length}/${steps.length}):\n${confirmed.map((step) => `- ${step.key}: ${safeText(answers[step.key])}`).join("\n") || "- 없음"}\n\n아직 비어 있는 항목 (${missing.length}개):\n${missing.map((step) => `- ${step.key}: ${step.shortTitle || step.title}`).join("\n")}\n\n다음 질문은 반드시 비어 있는 항목 중 하나를 채우는 질문이어야 한다. 이미 확인된 항목을 더 자세히 묻지 않는다.`
+    : `10개 항목이 모두 확인되었다. 결과물이 크게 달라질 핵심 사항이 남아 있지 않다면 지금 ${finalPromptMode === "segmented" ? "final_prompt_signal" : "final_prompt_ready"}를 반환한다.`;
   const memory = memoryItems.map((item) => `- ${safeText(item?.text)}`).filter((line) => line !== "- ").join("\n");
   const transcript = summarizeTurns(turns) || "아직 후속 대화 없음";
   const isThorough = guideMode === "thorough";
   const useSegmentedFinalPrompt = finalPromptMode === "segmented";
   const regulationQuestionGuidance = buildNaturalRegulationQuestionGuidance();
   const regulationPromptRequirements = buildRegulationPromptRequirements();
+  const checklist = steps.map((step, index) => `${index + 1}. ${step.key}: ${step.shortTitle || step.title}`).join("\n");
   const modeRules = isThorough
-    ? `질문 방식: 꼼꼼 확인 모드.\n- grill-me 스타일로 모호한 답변을 그냥 넘기지 않는다.\n- 단, 말투는 초보 선생님에게 부담 없게 부드럽게 유지한다.\n- 만들 것이 웹앱, 웹사이트, 윈도우용 프로그램, 모바일 앱, 수업 자료, 문서 중 어디에 가까운지 초반에 확인한다.\n- 산출물, 사용 장면, 교육 맥락, 목표, 교사 판단, 필요한 자료, 개인정보/민감정보, 외부 서비스, 결과물 모습, 품질 기준 중 빈칸이 있으면 우선순위를 정해 되묻는다.\n- 개인정보, 학생 입력, 외부 서비스, 학습 콘텐츠 심의 신호가 나오면 반드시 쉬운 말로 추가 확인한다.\n- 왼쪽의 10개 항목은 반드시 거치는 핵심 체크리스트다. 10번째 답변 전에는 final_prompt_ready를 반환하지 않는다.\n- 10번째 답변 뒤에는 필요한 경우만 추가 질문하고, 전체 사용자 답변 15회를 넘기기 전에 final_prompt_ready를 반환한다.`
-    : `질문 방식: 친절 모드.\n- 초보 선생님이 부담 없이 답할 수 있게 부드럽게 묻는다.\n- 만들 것이 웹앱, 웹사이트, 윈도우용 프로그램, 모바일 앱, 수업 자료, 문서 중 어디에 가까운지 초반에 확인한다.\n- 꼭 필요한 내용부터 확인하고, 모호한 부분은 쉬운 선택지로 돕는다.\n- 왼쪽의 10개 항목은 반드시 거치는 핵심 체크리스트다. 10번째 답변 전에는 final_prompt_ready를 반환하지 않는다.\n- 10번째 답변 뒤에는 필요한 경우만 추가 질문하고, 전체 사용자 답변 15회를 넘기기 전에 final_prompt_ready를 반환한다.`;
+    ? `질문 방식: 꼼꼼 확인 모드.\n- 모호한 답변은 그냥 넘기지 않고 한 번 더 쉬운 말로 되묻는다.\n- 단, 말투는 코딩을 처음 접하는 선생님에게 부담 없게 부드럽게 유지한다.\n- 아래 10개 항목 중 아직 비어 있는 항목을 우선순위대로 하나씩 확인한다.\n- 10개 항목이 모두 채워지기 전에는 final_prompt를 반환하지 않는다.\n- 10개 항목이 모두 채워지면 바로 final_prompt를 반환한다. 추가 질문은 결과물이 크게 달라질 때만, 최대 2번까지만 한다.`
+    : `질문 방식: 친절 모드.\n- 코딩을 처음 접하는 선생님이 부담 없이 답할 수 있게 부드럽게 묻는다.\n- 아래 10개 항목 중 꼭 필요한 것부터 확인하고, 모호한 부분은 쉬운 선택지로 돕는다.\n- 10개 항목이 모두 채워지기 전에는 final_prompt를 반환하지 않는다.\n- 10개 항목이 모두 채워지면 바로 final_prompt를 반환한다. 추가 질문은 결과물이 크게 달라질 때만, 최대 2번까지만 한다.`;
+  const plainLanguageRules = `쉬운 말 규칙 (반드시 지킨다):
+- 한 번에 한 가지만 묻는다. 질문은 두 문장을 넘기지 않고, 괄호 안에 여러 보기를 나열하지 않는다.
+- 서버, DB, 데이터베이스, 백엔드, 프론트엔드, API, 인증, 식별 정보, 세션, 배포 같은 개발 용어를 질문에 쓰지 않는다. 대신 생활 언어로 바꿔 묻는다.
+  - 데이터베이스가 필요한지 → "입력한 내용이 다음에 다시 열어도 남아 있어야 하나요?"
+  - 서버(백엔드)가 필요한지 → "여러 사람이 각자 휴대폰이나 컴퓨터에서 접속해서 같은 내용을 봐야 하나요?"
+  - 로그인이 필요한지 → "누가 썼는지 구분해야 하나요? 학생이 각자 자기 것만 보게 해야 하나요?"
+  - 개인정보 → "학생 이름이나 번호처럼 누구인지 알 수 있는 정보를 적나요?"
+- 선택지에는 예시를 넣어 고르기 쉽게 한다. 예: "네, 이름을 적습니다.", "아니요, 번호만 씁니다.", "아직 정하지 않았습니다."
+- 앱이나 프로그램을 만드는 요청이면 저장 여부, 여러 사람 접속 여부, 로그인 여부, 개인정보 여부는 반드시 쉬운 말로 확인한다. 이 답이 최종 프롬프트의 기술 방향(저장 방식, 서버 필요 여부, 보안 조치)을 정한다.`;
+  const factRules = `capturedFacts 작성 규칙:
+- capturedFacts는 지금까지의 대화에서 확인된 항목만 담는다. 키는 아래 10개 항목의 영문 키를 그대로 쓴다.
+${checklist}
+- 값은 선생님 답변을 한 줄(60자 이내)의 쉬운 한국어로 요약한다. 확인되지 않은 항목은 넣지 않는다.
+- 추가로 outputKind(app|material|document|assessment|unknown), needsStorage(none|local|server), needsLogin(true|false), hasPersonalData(true|false)도 확인되면 담는다.
+- nextStepKey에는 이번 질문이 채우려는 항목의 영문 키를 넣는다.`;
 
   return [
     {
       role: "system",
-      content: `너는 교사용 질문형 프롬프트 가이드다. 초보 선생님이 짧은 자연어 씨앗에서 시작해 만들고 싶은 앱, 프로그램, 수업 자료, 평가 자료, 학교 업무 자료를 생성할 수 있는 최종 프롬프트를 함께 완성하도록 돕는다.\n\n${modeRules}\n\n${regulationQuestionGuidance}\n\n공통 규칙:\n- 교사용 맥락을 기본으로 하되, 교사가 일반 사용자처럼 앱/프로그램/자료를 만들고 싶어 할 수 있음을 허용한다.\n- 질문, 최종 프롬프트, 참고 안내는 모두 한국어로 작성한다. 사용자가 영어로 입력해도 한국어로 정리한다.\n- 한 번에 하나의 질문만 한다.\n- A/B/C/D 선택지는 보조일 뿐이며 직접 입력이 우선이다.\n- suggestedOptions는 모두 교사에게 말하는 존댓말 문장으로 쓴다. 예: "웹앱을 만들고 싶습니다.", "학생 정보는 포함하지 않습니다.", "아직 정하지 않았습니다."\n- suggestedOptions에 반말, 명사형 종결, "~함", "~없음", "~있음" 같은 표현을 쓰지 않는다.\n- 교사 판단 지점, 개인정보/민감정보, 학생의 외부 서비스 사용 여부를 필요할 때 쉬운 말로 확인한다.\n- 심의 관련 확인이 필요하면 교사 단독 행정·업무용인지, 정규 수업에서 학생과 함께 쓰는지, 학생 개인정보를 수집·처리하는지 구분해 묻는다.\n- 최종 프롬프트에는 교사가 이해하기 쉬운 짧은 요약과 AI가 실행할 상세 프롬프트를 분리한다.\n- AI 실행용 프롬프트는 짧게 요약하지 말고, 개발자나 제작 AI가 바로 실행할 수 있는 요구사항 정의서 수준으로 상세하게 작성한다.\n- AI 실행용 프롬프트에는 사용자 역할, 핵심 기능, 화면 흐름, 기능별 모듈, 데이터 모델, 권한 설계, 개인정보보호를 지키기 위한 구현 계획, 심의 대응에 필요한 구현 계획, 테스트 기준, 완료 기준을 포함한다.\n- 개인정보보호와 학습지원 소프트웨어 심의 규정 설명은 참고 안내로 분리하고, AI 실행용 프롬프트에는 이를 준수하기 위한 화면, 권한, 저장, 삭제, 로그, 내보내기 기능 계획만 담는다.\n- 앱, 웹앱, 프로그램, 복합 자료를 만드는 최종 프롬프트에는 기능별 모듈화를 반드시 요구한다. 예: 화면/UI, 인증과 권한, 데이터 모델, 입력/업로드, 평가 기록, 피드백, 알림, 보안, 개인정보보호 구현, 심의 대응 자료 생성, 테스트.\n- 각 모듈에는 역할, 주요 기능, 입력 데이터, 출력 데이터, 수정할 때 주의할 점을 포함하게 한다.\n${regulationPromptRequirements}\n${useSegmentedFinalPrompt ? "- 충분히 모였으면 final_prompt_signal을 반환한다. 이때 최종 프롬프트 본문을 작성하지 않는다." : "- 충분히 모였으면 final_prompt_ready를 반환한다."}\n- 반드시 JSON만 반환한다.`
+      content: `너는 교사용 질문형 프롬프트 가이드다. 초보 선생님이 짧은 자연어 씨앗에서 시작해 만들고 싶은 앱, 프로그램, 수업 자료, 평가 자료, 학교 업무 자료를 생성할 수 있는 최종 프롬프트를 함께 완성하도록 돕는다.\n\n${modeRules}\n\n${plainLanguageRules}\n\n${factRules}\n\n${regulationQuestionGuidance}\n\n공통 규칙:\n- 교사용 맥락을 기본으로 하되, 교사가 일반 사용자처럼 앱/프로그램/자료를 만들고 싶어 할 수 있음을 허용한다.\n- 질문, 최종 프롬프트, 참고 안내는 모두 한국어로 작성한다. 사용자가 영어로 입력해도 한국어로 정리한다.\n- 한 번에 하나의 질문만 한다.\n- 선생님은 A/B/C/D 중 하나를 고르거나 직접 문장으로 답할 수 있다. 직접 답한 내용이 선택지보다 우선이다.\n- suggestedOptions는 모두 교사에게 말하는 존댓말 문장으로 쓴다. 예: "웹앱을 만들고 싶습니다.", "학생 정보는 포함하지 않습니다.", "아직 정하지 않았습니다."\n- suggestedOptions에 반말, 명사형 종결, "~함", "~없음", "~있음" 같은 표현을 쓰지 않는다.\n- 교사 판단 지점, 개인정보/민감정보, 학생의 외부 서비스 사용 여부를 필요할 때 쉬운 말로 확인한다.\n- 심의 관련 확인이 필요하면 교사 단독 행정·업무용인지, 정규 수업에서 학생과 함께 쓰는지, 학생 개인정보를 수집·처리하는지 구분해 묻는다.\n- 최종 프롬프트에는 교사가 이해하기 쉬운 짧은 요약과 AI가 실행할 상세 프롬프트를 분리한다.\n- 최종 프롬프트는 요즘처럼 AI에게 코딩을 시키는 상황을 전제로 쓴다. 저장 여부, 여러 사람 접속 여부, 로그인 여부에 맞춰 가장 단순한 기술 방향(예: 저장 없음 → 브라우저만으로 동작, 혼자 저장 → 브라우저 저장, 여러 사람 공유 → 서버와 데이터베이스)을 정해 주고, 비밀키를 코드에 넣지 않기, 권한 검사는 서버에서 하기, 입력값 검증, 백업, 최소 수집 같은 보안 기본을 구현 계획에 포함한다.\n- AI 실행용 프롬프트는 짧게 요약하지 말고, 개발자나 제작 AI가 바로 실행할 수 있는 요구사항 정의서 수준으로 상세하게 작성한다.\n- AI 실행용 프롬프트에는 사용자 역할, 핵심 기능, 화면 흐름, 기능별 모듈, 데이터 모델, 권한 설계, 개인정보보호를 지키기 위한 구현 계획, 심의 대응에 필요한 구현 계획, 테스트 기준, 완료 기준을 포함한다.\n- 개인정보보호와 학습지원 소프트웨어 심의 규정 설명은 참고 안내로 분리하고, AI 실행용 프롬프트에는 이를 준수하기 위한 화면, 권한, 저장, 삭제, 로그, 내보내기 기능 계획만 담는다.\n- 앱, 웹앱, 프로그램, 복합 자료를 만드는 최종 프롬프트에는 기능별 모듈화를 반드시 요구한다. 예: 화면/UI, 인증과 권한, 데이터 모델, 입력/업로드, 평가 기록, 피드백, 알림, 보안, 개인정보보호 구현, 심의 대응 자료 생성, 테스트.\n- 각 모듈에는 역할, 주요 기능, 입력 데이터, 출력 데이터, 수정할 때 주의할 점을 포함하게 한다.\n${regulationPromptRequirements}\n${useSegmentedFinalPrompt ? "- 충분히 모였으면 final_prompt_signal을 반환한다. 이때 최종 프롬프트 본문을 작성하지 않는다." : "- 충분히 모였으면 final_prompt_ready를 반환한다."}\n- 반드시 JSON만 반환한다.`
     },
     {
       role: "user",
-      content: `초기 씨앗: ${safeText(seed) || "없음"}\n\n누적 대화:\n${transcript}\n\n이전 작업 참고(있으면 참고만):\n${memory || "없음"}\n\n반환 JSON 형식 중 하나:\n{"kind":"question","question":"다음 한 가지 질문","rationale":"왜 이 질문이 필요한지","suggestedOptions":["선택지1","선택지2"],"capturedFacts":{"outputKind":"app|material|document|assessment|unknown"}}\n또는\n${useSegmentedFinalPrompt ? `{"kind":"final_prompt_signal","rationale":"충분한 이유"}` : `{"kind":"final_prompt_ready","finalPrompt":"복사 가능한 최종 프롬프트","referenceNotes":"분리된 참고 안내","rationale":"충분한 이유"}`}`
+      content: `초기 씨앗: ${safeText(seed) || "없음"}\n\n누적 대화:\n${transcript}\n\n${coverageStatus}\n\n이전 작업 참고(있으면 참고만):\n${memory || "없음"}\n\n반환 JSON 형식 중 하나:\n{"kind":"question","question":"다음 한 가지 질문","rationale":"왜 이 질문이 필요한지","nextStepKey":"확인하려는 항목 키","suggestedOptions":["선택지1","선택지2","아직 정하지 않았습니다."],"capturedFacts":{"output":"확인된 값","useScene":"확인된 값","outputKind":"app|material|document|assessment|unknown","needsStorage":"none|local|server","needsLogin":false,"hasPersonalData":false}}\n또는\n${useSegmentedFinalPrompt ? `{"kind":"final_prompt_signal","rationale":"충분한 이유"}` : `{"kind":"final_prompt_ready","finalPrompt":"복사 가능한 최종 프롬프트","referenceNotes":"분리된 참고 안내","rationale":"충분한 이유"}`}`
     }
   ];
 }
@@ -67,7 +88,7 @@ export function buildSegmentedFinalPromptMessages({ segment = "ai_prompt", seed 
   const footerPolicyPrompt = buildFooterPolicyPrompt();
   const segmentRules = {
     teacher_summary: "교사용 요약 부분만 작성한다. 초보 교사가 빠르게 이해할 수 있게 만들 것, 사용 장면, 핵심 확인 사항, 교사가 직접 판단할 점을 짧고 쉬운 한국어로 정리한다.",
-    ai_prompt: `AI 실행용 프롬프트 부분만 작성한다. 개발자나 제작 AI가 바로 실행할 수 있도록 요구사항 정의서 수준으로 상세하게 작성한다. 사용자 역할, 핵심 기능, 화면 흐름, 기능별 모듈, 데이터 모델, 권한 설계, 개인정보보호를 지키기 위한 구현 계획, 심의 대응에 필요한 구현 계획, 테스트 기준, 완료 기준을 포함한다. 심의 대응 구현 계획에는 사용 목적이 교사 단독 행정·업무용인지, 정규 수업에서 학생과 함께 쓰는지, 학생 개인정보를 수집·처리하는지 확인하는 화면이나 체크리스트를 포함한다. 기능별 모듈은 역할, 주요 기능, 입력 데이터, 출력 데이터, 예외 상황, 수정할 때 주의할 점을 나누어 쓴다.\n${regulationPromptRequirements}\n${footerPolicyPrompt}`,
+    ai_prompt: `AI 실행용 프롬프트 부분만 작성한다. 첫 줄은 [역할]로 시작하고, 개발자나 제작 AI가 바로 실행할 수 있도록 요구사항 정의서 수준으로 상세하게 작성한다. 앱이나 프로그램이면 대화에서 확인한 저장 여부, 여러 사람 접속 여부, 로그인 여부에 맞춰 [기술 방향과 보안 기본] 섹션을 넣는다. 저장이 필요 없으면 브라우저만으로 동작하게, 혼자만 쓰면 브라우저 저장으로, 여러 사람이 함께 쓰면 서버와 데이터베이스를 쓰되 비밀키는 코드에 넣지 않고 설정 파일로 분리하고 권한 검사는 서버에서 하며 입력값 검증, 백업, 최소 수집을 지시한다. 사용자 역할, 핵심 기능, 화면 흐름, 기능별 모듈, 데이터 모델, 권한 설계, 개인정보보호를 지키기 위한 구현 계획, 심의 대응에 필요한 구현 계획, 테스트 기준, 완료 기준을 포함한다. 심의 대응 구현 계획에는 사용 목적이 교사 단독 행정·업무용인지, 정규 수업에서 학생과 함께 쓰는지, 학생 개인정보를 수집·처리하는지 확인하는 화면이나 체크리스트를 포함한다. 기능별 모듈은 역할, 주요 기능, 입력 데이터, 출력 데이터, 예외 상황, 수정할 때 주의할 점을 나누어 쓴다.\n${regulationPromptRequirements}\n${footerPolicyPrompt}`,
     reference_notes: "참고 안내 부분만 작성한다. 만들려는 앱이나 서비스에서 개인정보보호를 위해 교사가 확인할 점과 학습지원 소프트웨어 심의 준비를 위해 고려할 점만 간결한 체크리스트로 정리한다. 특히 교사 단독 행정·업무·수업 준비용 도구는 심의 제외, 정규 수업에서 학생과 함께 쓰며 개인정보를 수집·처리하는 도구는 심의 필요, 정규 수업용이라도 개인정보 수집이 전혀 없는 단순 도구는 심의 제외 가능이라는 판단 흐름을 포함한다. 규정 전체를 길게 설명하지 않는다."
   };
   const selectedRule = segmentRules[segment] || segmentRules.ai_prompt;
@@ -199,12 +220,14 @@ export function parsePlannerResponse(content = "") {
     if (parsed?.kind === "question" && safeText(parsed.question)) {
       const outputKind = safeText(parsed?.capturedFacts?.outputKind) || "unknown";
       const suggestedOptions = optionObjects(parsed.suggestedOptions);
+      const nextStepKey = safeText(parsed.nextStepKey);
       return {
         ok: true,
         value: {
           kind: "question",
           question: safeText(parsed.question),
           rationale: safeText(parsed.rationale),
+          stepKey: steps.some((step) => step.key === nextStepKey) ? nextStepKey : "",
           suggestedOptions: suggestedOptions.length ? suggestedOptions : quickOptionsForIntent({ outputKind }),
           capturedFacts: parsed.capturedFacts && typeof parsed.capturedFacts === "object" ? parsed.capturedFacts : { outputKind }
         }

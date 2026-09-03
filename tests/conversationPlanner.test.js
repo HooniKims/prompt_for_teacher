@@ -44,6 +44,24 @@ test("buildNextQuestionMessages includes natural regulation-informed service que
   assert.match(content, /로그인, 답안 제출, 점수, 활동 기록/);
   assert.match(content, /개인정보 처리방침/);
   assert.match(content, /이용약관/);
+  assert.match(content, /별도의 질문으로 만들지 않는다/);
+  assert.match(content, /선생님에게 묻지 않는다/);
+  assert.match(content, /10개 항목이 모두 채워지면 바로 final_prompt를 반환한다/);
+  assert.match(content, /최대 2번까지만/);
+});
+
+test("buildNextQuestionMessages tells the model which checklist items are still empty", () => {
+  const partial = buildNextQuestionMessages({ seed: "발표 순서 앱", turns: [], answers: { output: "발표 순서 앱", useScene: "수업 중 학생 사용" } })
+    .map((message) => message.content).join("\n");
+  assert.match(partial, /확인된 항목 \(2\/10\)/);
+  assert.match(partial, /아직 비어 있는 항목 \(8개\)/);
+  assert.match(partial, /- context: 대상과 맥락/);
+  assert.match(partial, /반드시 비어 있는 항목 중 하나를 채우는 질문/);
+
+  const full = buildNextQuestionMessages({ seed: "발표 순서 앱", turns: [], answers: Object.fromEntries(["output","useScene","context","goal","teacherJudgment","sourceMaterial","safety","externalService","format","quality"].map((key) => [key, "확인"])) })
+    .map((message) => message.content).join("\n");
+  assert.match(full, /10개 항목이 모두 확인되었다/);
+  assert.match(full, /지금 final_prompt_ready를 반환한다/);
 });
 
 test("buildNextQuestionMessages can switch to thorough grill-style checks", () => {
@@ -55,8 +73,8 @@ test("buildNextQuestionMessages can switch to thorough grill-style checks", () =
   const content = messages.map((message) => message.content).join("\n");
 
   assert.match(content, /꼼꼼 확인 모드/);
-  assert.match(content, /grill-me 스타일/);
-  assert.match(content, /모호한 답변을 그냥 넘기지 않는다/);
+  assert.match(content, /꼼꼼 확인 모드/);
+  assert.match(content, /모호한 답변은 그냥 넘기지 않고/);
   assert.match(content, /개인정보|외부 서비스|학습 콘텐츠 심의/);
 });
 

@@ -2,73 +2,80 @@ export const steps = [
   {
     key: "output",
     title: "만들 것 확인",
+    shortTitle: "만들 것",
     question: "먼저 무엇을 만들고 싶은지 정해볼게요. 지금 가장 가까운 것은 무엇인가요?",
     options: [
       { id: "A", label: "웹앱 또는 웹사이트를 만들고 싶습니다." },
-      { id: "B", label: "윈도우용 프로그램을 만들고 싶습니다." },
-      { id: "C", label: "모바일 앱을 만들고 싶습니다." },
+      { id: "B", label: "컴퓨터에 설치해서 쓰는 프로그램을 만들고 싶습니다." },
+      { id: "C", label: "휴대폰 앱을 만들고 싶습니다." },
       { id: "D", label: "수업 자료, 문서, 활동지를 만들고 싶습니다." }
     ]
   },
   {
     key: "useScene",
     title: "사용 장면 확인",
-    question: "이 프롬프트는 어느 장면에서 쓰일 예정인가요?",
+    shortTitle: "사용 장면",
+    question: "이 결과물은 언제, 누가 쓰나요?",
     options: [
-      { id: "A", label: "수업 준비에 사용합니다." },
-      { id: "B", label: "수업 중에 활용합니다." },
-      { id: "C", label: "피드백 또는 평가에 사용합니다." },
-      { id: "D", label: "행정 처리 또는 협의에 사용합니다." }
+      { id: "A", label: "선생님이 수업 준비할 때 혼자 씁니다." },
+      { id: "B", label: "수업 시간에 학생들과 함께 씁니다." },
+      { id: "C", label: "피드백이나 평가할 때 씁니다." },
+      { id: "D", label: "행정 처리나 교사 협의에 씁니다." }
     ]
   },
   {
     key: "context",
     title: "교육 및 업무 맥락 확인",
-    question: "교육 및 업무 맥락은 어디에 가장 가깝나요?",
+    shortTitle: "대상과 맥락",
+    question: "어떤 학교급, 어떤 상황에 가장 가깝나요?",
     options: [
-      { id: "A", label: "초등 수업 또는 학급 운영에 가깝습니다." },
-      { id: "B", label: "중학교 수업 또는 생활지도에 가깝습니다." },
-      { id: "C", label: "고등학교 수업 또는 진로·평가에 가깝습니다." },
-      { id: "D", label: "학교 공통 업무 또는 부서 업무에 가깝습니다." }
+      { id: "A", label: "초등 수업 또는 학급 운영입니다." },
+      { id: "B", label: "중학교 수업 또는 생활지도입니다." },
+      { id: "C", label: "고등학교 수업 또는 진로·평가입니다." },
+      { id: "D", label: "학교 공통 업무 또는 부서 업무입니다." }
     ]
   },
   {
     key: "goal",
     title: "목표 확인",
-    question: "이 작업을 통해 가장 좋아져야 하는 부분은 무엇인가요?",
+    shortTitle: "목표",
+    question: "이 결과물로 가장 좋아졌으면 하는 것은 무엇인가요?",
     options: [
-      { id: "A", label: "학생의 개념 이해를 돕고 싶습니다." },
-      { id: "B", label: "학생의 질문과 참여를 늘리고 싶습니다." },
-      { id: "C", label: "업무 내용을 빠르게 정리하고 싶습니다." },
-      { id: "D", label: "문장의 톤과 완성도를 높이고 싶습니다." }
+      { id: "A", label: "학생이 개념을 더 잘 이해하면 좋겠습니다." },
+      { id: "B", label: "학생의 질문과 참여가 늘면 좋겠습니다." },
+      { id: "C", label: "업무 시간이 줄면 좋겠습니다." },
+      { id: "D", label: "문장의 말투와 완성도가 좋아지면 좋겠습니다." }
     ]
   },
   {
     key: "teacherJudgment",
     title: "교사 판단 지점 확인",
-    question: "AI가 대신 정하면 안 되고 선생님이 판단해야 하는 핵심 선택은 무엇인가요?",
+    shortTitle: "선생님이 정할 것",
+    question: "AI가 마음대로 정하면 안 되고 선생님이 직접 정해야 하는 것은 무엇인가요?",
     options: [
-      { id: "A", label: "성취기준 또는 평가 기준입니다." },
+      { id: "A", label: "성취기준이나 평가 기준입니다." },
       { id: "B", label: "학생 수준과 활동 난이도입니다." },
-      { id: "C", label: "생활지도 또는 소통 표현입니다." },
+      { id: "C", label: "생활지도나 학부모 소통 표현입니다." },
       { id: "D", label: "민감한 행정 판단입니다." }
     ]
   },
   {
     key: "sourceMaterial",
     title: "필요한 자료 확인",
-    question: "프롬프트에 반영할 참고 자료가 있나요?",
+    shortTitle: "참고 자료",
+    question: "AI에게 같이 줄 자료가 있나요?",
     options: [
       { id: "A", label: "교육과정 성취기준이 있습니다." },
-      { id: "B", label: "기존 문서 또는 학교 양식이 있습니다." },
+      { id: "B", label: "기존 문서나 학교 양식이 있습니다." },
       { id: "C", label: "회의 내용, 협의 내용, 학생 반응이 있습니다." },
       { id: "D", label: "아직 없습니다. 나중에 추가하겠습니다." }
     ]
   },
   {
     key: "safety",
-    title: "안전 확인",
-    question: "안전 확인 하나만 할게요. 실제 학생 이름, 얼굴, 학번, 연락처, 성적, 상담 내용처럼 특정 학생을 알아볼 수 있는 정보가 들어가나요?",
+    title: "개인정보 확인",
+    shortTitle: "개인정보",
+    question: "실제 학생 이름, 얼굴, 학번, 연락처, 성적, 상담 내용처럼 특정 학생을 알아볼 수 있는 정보가 들어가나요?",
     options: [
       { id: "A", label: "개인정보는 들어가지 않습니다." },
       { id: "B", label: "가명이나 예시 정보로 바꿀 수 있습니다." },
@@ -78,18 +85,20 @@ export const steps = [
   },
   {
     key: "externalService",
-    title: "외부 도구 및 서비스 확인",
-    question: "학생이 직접 외부 서비스에 로그인하거나 답안을 입력하는 방식이 포함되나요?",
+    title: "저장·접속 방식 확인",
+    shortTitle: "저장과 접속",
+    question: "입력한 내용이 다음에 다시 열어도 남아 있어야 하나요? 그리고 여러 사람이 인터넷으로 같이 쓰나요?",
     options: [
-      { id: "A", label: "교사만 준비용으로 사용합니다." },
-      { id: "B", label: "학생이 외부 서비스에 로그인합니다.", risk: "learningSoftware" },
-      { id: "C", label: "학생이 답안이나 활동 결과를 제출합니다.", risk: "learningSoftware" },
-      { id: "D", label: "업체가 만든 학습 콘텐츠나 진단 기능을 사용합니다.", risk: "learningContent" }
+      { id: "A", label: "저장할 필요 없이 화면에서만 쓰면 됩니다.", tech: "none" },
+      { id: "B", label: "내 컴퓨터(브라우저)에만 남아 있으면 됩니다.", tech: "local" },
+      { id: "C", label: "여러 사람이 인터넷으로 접속하고 내용이 함께 저장돼야 합니다.", tech: "server", risk: "learningSoftware" },
+      { id: "D", label: "학생이 로그인해서 직접 입력하거나 제출합니다.", tech: "server-login", risk: "learningSoftware" }
     ]
   },
   {
     key: "format",
     title: "결과물 모습 구체화",
+    shortTitle: "결과물 모습",
     question: "최종 결과물은 어떤 모습이면 바로 쓰기 좋을까요?",
     options: [
       { id: "A", label: "화면과 버튼이 있는 앱이면 좋겠습니다." },
@@ -101,9 +110,10 @@ export const steps = [
   {
     key: "quality",
     title: "품질 기준 및 수정 방향 확인",
-    question: "결과물을 평가할 때 가장 중요한 기준은 무엇인가요?",
+    shortTitle: "품질 기준",
+    question: "결과물을 볼 때 가장 중요한 기준은 무엇인가요?",
     options: [
-      { id: "A", label: "내일 바로 실행 가능해야 합니다." },
+      { id: "A", label: "내일 바로 쓸 수 있어야 합니다." },
       { id: "B", label: "말투가 부드럽고 부담 없어야 합니다." },
       { id: "C", label: "기준과 절차가 구체적이어야 합니다." },
       { id: "D", label: "짧고 명확해야 합니다." }
@@ -111,6 +121,12 @@ export const steps = [
   }
 ];
 
+export const stepKeys = steps.map((step) => step.key);
+
 export function getStepByIndex(index) {
   return Number.isInteger(index) && index >= 0 && index < steps.length ? steps[index] : null;
+}
+
+export function getStepByKey(key) {
+  return steps.find((step) => step.key === key) ?? null;
 }

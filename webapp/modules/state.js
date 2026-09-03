@@ -1,4 +1,4 @@
-import { steps } from "./steps.js";
+import { steps, stepKeys } from "./steps.js";
 
 function cloneRecord(record) {
   return record && typeof record === "object" && !Array.isArray(record) ? { ...record } : {};
@@ -36,8 +36,41 @@ export function createInitialState() {
     conversationTurns: [],
     suggestedOptions: [],
     isAwaitingAi: false,
+    awaitingTask: "",
+    followUpQuestions: 0,
     mode: "ai"
   };
+}
+
+const MAX_FACT_LENGTH = 160;
+
+function trimFact(value) {
+  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  return text.length > MAX_FACT_LENGTH ? `${text.slice(0, MAX_FACT_LENGTH - 1)}…` : text;
+}
+
+export function mergeCapturedAnswers(answers = {}, capturedFacts = {}) {
+  if (!capturedFacts || typeof capturedFacts !== "object") return { ...(answers ?? {}) };
+  const next = { ...(answers ?? {}) };
+  stepKeys.forEach((key) => {
+    if (typeof next[key] === "string" && next[key].trim()) return;
+    const fact = trimFact(capturedFacts[key]);
+    if (!fact) return;
+    if (/^(unknown|없음|미정|모름|null|undefined|n\/a)$/i.test(fact)) return;
+    if (/미확인|아직|정하지 않|확인 전|확인되지 않|모르겠|미정|해당 없음|tbd/i.test(fact)) return;
+    next[key] = fact;
+  });
+  return next;
+}
+
+export function answeredStepCount(state) {
+  const answers = state?.answers ?? {};
+  return stepKeys.filter((key) => typeof answers[key] === "string" && answers[key].trim()).length;
+}
+
+export function unansweredSteps(state) {
+  const answers = state?.answers ?? {};
+  return steps.filter((step) => !(typeof answers[step.key] === "string" && answers[step.key].trim()));
 }
 
 export function appendAssistantMessage(state, text, options = []) {
@@ -117,26 +150,39 @@ export function advanceStep(state, totalSteps = steps.length) {
   };
 }
 
+export function completionMessage(state) {
+  const answered = answeredStepCount(state);
+  const total = steps.length;
+  const missing = unansweredSteps(state).map((step) => step.shortTitle || step.title);
+  const headline = answered >= total
+    ? `${total}단계 확인이 끝났습니다.`
+    : `${total}개 항목 중 ${answered}개를 확인한 내용으로 프롬프트를 만들었습니다.`;
+  const missingLine = missing.length && answered < total
+    ? `\n아직 확인하지 않은 항목: ${missing.join(", ")}. 필요하면 아래 입력창에 적어주시면 반영합니다.`
+    : "";
+  return `${headline} 오른쪽에 최종 프롬프트와 참고 안내를 나눠 두었습니다.${missingLine}\n\n마음에 들지 않는 부분이 있으면 아래 입력창에 그대로 적어주세요. 예: 더 부드럽게, 행정 문서 느낌 줄이기, 개인정보 안내를 덜 부담스럽게.`;
+}
+
 export function completeState(state, { finalPrompt, referenceNotes }) {
-  return appendAssistantMessage(
-    {
-      ...state,
-      completed: true,
-      activeStepIndex: steps.length,
-      finalPrompt: normalizeText(finalPrompt),
-      referenceNotes: normalizeText(referenceNotes)
-    },
-    "10단계 확인이 끝났습니다. 오른쪽에 최종 프롬프트와 참고 안내를 분리해두었습니다.\n\n마음에 들지 않는 부분이 있으면 아래 입력창에 그대로 지적해주세요. 예: 더 부드럽게, 행정 문서 느낌 줄이기, 개인정보 안내를 덜 부담스럽게."
-  );
+  const nextState = {
+    ...state,
+    completed: true,
+    activeStepIndex: steps.length,
+    finalPrompt: normalizeText(finalPrompt),
+    referenceNotes: normalizeText(referenceNotes),
+    awaitingTask: ""
+  };
+  return appendAssistantMessage(nextState, completionMessage(nextState));
 }
 
 export function applyRevisionState(state, { revisedPrompt, summary }) {
   return appendAssistantMessage(
     {
       ...state,
-      finalPrompt: normalizeText(revisedPrompt)
+      finalPrompt: normalizeText(revisedPrompt),
+      awaitingTask: ""
     },
-    `수정 요청을 반영했습니다.\n변경점: ${normalizeText(summary)}\n\n오른쪽 최종 프롬프트를 다시 확인해주세요.`
+    `${normalizeText(summary)}\n\n오른쪽 최종 프롬프트를 다시 확인해주세요.`
   );
 }
 
@@ -161,6 +207,9 @@ export function restoreDraft(draft) {
     conversationTurns: Array.isArray(draft.conversationTurns) ? draft.conversationTurns.map((turn) => ({ ...turn })) : [],
     suggestedOptions: Array.isArray(draft.suggestedOptions) ? draft.suggestedOptions.map((option) => ({ ...option })) : [],
     isAwaitingAi: draft.isAwaitingAi === true,
+    awaitingTask: normalizeText(draft.awaitingTask),
+    followUpQuestions: Number.isInteger(draft.followUpQuestions) ? draft.followUpQuestions : 0,
+    pendingStepKey: normalizeText(draft.pendingStepKey),
     mode: normalizeText(draft.mode) || "ai"
   };
 }
@@ -176,18 +225,21 @@ export function markLlmStatus(state, { status = "unknown", message = "", models 
   };
 }
 
-export function setAwaitingAi(state, isAwaitingAi = true) {
-  return { ...state, isAwaitingAi: isAwaitingAi === true };
+export function setAwaitingAi(state, isAwaitingAi = true, task = "") {
+  return { ...state, isAwaitingAi: isAwaitingAi === true, awaitingTask: isAwaitingAi === true ? normalizeText(task) : "" };
 }
 
-export function appendAiQuestion(state, { question, suggestedOptions = [], capturedFacts = {} } = {}) {
+export function appendAiQuestion(state, { question, suggestedOptions = [], capturedFacts = {}, stepKey = "" } = {}) {
   const text = normalizeText(question);
   const options = Array.isArray(suggestedOptions) ? suggestedOptions.map((option) => ({ ...option, optional: option.optional !== false })) : [];
+  const facts = capturedFacts && typeof capturedFacts === "object" ? capturedFacts : {};
   return appendAssistantMessage(
     {
       ...state,
       suggestedOptions: options,
-      intentProfile: { ...(state.intentProfile ?? {}), ...(capturedFacts && typeof capturedFacts === "object" ? capturedFacts : {}) },
+      pendingStepKey: normalizeText(stepKey),
+      answers: mergeCapturedAnswers(state.answers, facts),
+      intentProfile: { ...(state.intentProfile ?? {}), ...facts },
       conversationTurns: [
         ...(Array.isArray(state.conversationTurns) ? state.conversationTurns : []),
         { role: "assistant", text, source: "ai-question" }
@@ -201,9 +253,19 @@ export function appendAiQuestion(state, { question, suggestedOptions = [], captu
 
 export function recordConversationAnswer(state, answerText, option = null) {
   const text = option?.label ? option.label : normalizeText(answerText);
+  const pendingStepKey = normalizeText(state.pendingStepKey);
+  const answers = pendingStepKey && !(state.answers ?? {})[pendingStepKey]
+    ? { ...(state.answers ?? {}), [pendingStepKey]: trimFact(text) }
+    : state.answers;
+  const answerMeta = pendingStepKey && option
+    ? { ...(state.answerMeta ?? {}), [pendingStepKey]: { ...option } }
+    : state.answerMeta;
   return appendUserMessage(
     {
       ...state,
+      answers,
+      answerMeta,
+      pendingStepKey: "",
       conversationTurns: [
         ...(Array.isArray(state.conversationTurns) ? state.conversationTurns : []),
         { role: "user", text, source: option ? "quick-option" : "direct", option: option ? { ...option } : null }

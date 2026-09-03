@@ -23,24 +23,8 @@ function removeExistingRevisionSection(prompt) {
 
 export function summarizeRevision(revisionRequest = "") {
   const request = cleanRevisionRequest(revisionRequest);
-
-  if (/개인정보|민감|안전|보안/.test(request)) {
-    return "개인정보와 안전 조건이 더 분명하게 보이도록 수정했습니다.";
-  }
-
-  if (/짧|간결|요약|줄여/.test(request)) {
-    return "분량을 줄이고 핵심 지시가 더 간결하게 보이도록 수정했습니다.";
-  }
-
-  if (/구체|자세|상세|예시/.test(request)) {
-    return "교사가 바로 판단하고 실행할 수 있도록 더 구체적인 방향을 반영했습니다.";
-  }
-
-  if (/부드럽|친절|완곡|따뜻/.test(request)) {
-    return "표현이 더 부드럽고 교사가 검토하기 쉬운 방향으로 수정했습니다.";
-  }
-
-  return "교사의 수정 요청을 최종 프롬프트에 반영했습니다.";
+  const shortRequest = request.length > 80 ? `${request.slice(0, 79)}…` : request;
+  return `요청하신 대로 반영했습니다: “${shortRequest}”`;
 }
 
 export function revisePrompt(prompt = "", revisionRequest = "") {

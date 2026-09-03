@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFinalPrompt, buildMemoryContext, buildPrivacyCondition, ensureFinalPromptRequirements, splitFinalPromptSections } from "../webapp/modules/promptBuilder.js";
+import { buildTechDirectionSection, buildFinalPrompt, buildMemoryContext, buildPrivacyCondition, ensureFinalPromptRequirements, splitFinalPromptSections } from "../webapp/modules/promptBuilder.js";
 
 const completedSession = {
   initialRequest: "중학교 과학 단원 마무리 활동지를 만들고 싶어요.",
@@ -76,6 +76,7 @@ test("buildFinalPrompt summarizes adaptive conversation turns for teachers", () 
 
   assert.match(prompt, /대화에서 확인한 내용/);
   assert.match(prompt, /학생 이름, 학번, 수행평가 점수, 오답 기록/);
+  assert.match(prompt, /아직 확인하지 않음/);
   assert.match(prompt, /교수학습평가와 개별 피드백/);
 });
 
@@ -265,4 +266,38 @@ test("buildFinalPrompt includes memory only when memory items are provided", () 
 
   assert.doesNotMatch(promptWithoutMemory, /\[이전 작업 참고\]/);
   assert.match(promptWithMemory, /\[이전 작업 참고\]/);
+});
+
+test("buildTechDirectionSection picks the simplest architecture from plain-language answers", () => {
+  const shared = buildTechDirectionSection({
+    initialRequest: "우리 반 발표 순서 앱",
+    answers: { output: "발표 순서 정하는 웹앱" },
+    answerMeta: { externalService: { id: "D", label: "학생이 로그인해서 직접 입력하거나 제출합니다.", tech: "server-login" } },
+    conversationTurns: []
+  });
+  assert.match(shared, /\[기술 방향과 보안 기본\]/);
+  assert.match(shared, /서버와 데이터베이스가 필요/);
+  assert.match(shared, /비밀키.*코드에 직접 쓰지 않고/);
+  assert.match(shared, /권한 검사는 화면 숨김이 아니라 서버/);
+  assert.match(shared, /검증된 로그인 서비스/);
+
+  const solo = buildTechDirectionSection({
+    initialRequest: "학급 규칙 안내문 만들기 도구",
+    answers: { output: "안내문 만드는 웹앱" },
+    answerMeta: { externalService: { id: "A", label: "저장할 필요 없이 화면에서만 쓰면 됩니다.", tech: "none" } },
+    conversationTurns: []
+  });
+  assert.match(solo, /서버나 데이터베이스 없이 브라우저에서만 동작/);
+
+  const document = buildTechDirectionSection({ initialRequest: "학급 규칙 안내문", answers: { output: "A4 안내문" }, conversationTurns: [] });
+  assert.equal(document, "");
+});
+
+test("buildFinalPrompt keeps the role first and moves writing conditions to the end", () => {
+  const prompt = buildFinalPrompt({ initialRequest: "독서 기록 웹앱", answers: { output: "독서 기록 웹앱" }, conversationTurns: [] });
+  const aiStart = prompt.indexOf("[AI 실행용 프롬프트]");
+  assert.ok(prompt.indexOf("[역할]") > aiStart);
+  assert.ok(prompt.indexOf("[역할]") < prompt.indexOf("[상세 작성 조건]"));
+  assert.ok(prompt.indexOf("[기술 방향과 보안 기본]") < prompt.indexOf("[상세 작성 조건]"));
+  assert.ok(prompt.indexOf("[상세 작성 조건]") < prompt.indexOf("[정보가 부족할 때]"));
 });

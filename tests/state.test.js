@@ -4,11 +4,14 @@ import { steps, getStepByIndex } from "../webapp/modules/steps.js";
 import { buildReferenceNotes } from "../webapp/modules/referenceNotes.js";
 import {
   advanceStep,
+  answeredStepCount,
+  appendAiQuestion,
   appendAssistantMessage,
   appendUserMessage,
   applyRevisionState,
   completeState,
   createInitialState,
+  recordConversationAnswer,
   recordStepAnswer,
   restoreDraft,
   startRequest
@@ -36,10 +39,10 @@ test("state helpers preserve a one-question-at-a-time flow", () => {
   assert.equal(answered.activeStepIndex, 0);
   assert.equal(advanced.activeStepIndex, 1);
   assert.equal(advanced.completed, false);
-  assert.equal(advanced.answers.output, "윈도우용 프로그램을 만들고 싶습니다.");
+  assert.equal(advanced.answers.output, "컴퓨터에 설치해서 쓰는 프로그램을 만들고 싶습니다.");
   assert.equal(advanced.answerMeta.output.id, "B");
   assert.equal(advanced.messages.at(-1).role, "user");
-  assert.equal(advanced.messages.at(-1).text, "B. 윈도우용 프로그램을 만들고 싶습니다.");
+  assert.equal(advanced.messages.at(-1).text, "B. 컴퓨터에 설치해서 쓰는 프로그램을 만들고 싶습니다.");
   assert.equal(greeted.messages.length, 1);
   assert.equal(initial.messages.length, 0);
 });
@@ -66,7 +69,34 @@ test("completeState marks the flow complete and stores generated outputs", () =>
   assert.equal(completed.finalPrompt, "최종 프롬프트");
   assert.equal(completed.referenceNotes, "참고 안내");
   assert.equal(completed.messages.at(-1).role, "assistant");
+  assert.match(completed.messages.at(-1).text, /10개 항목 중 0개를 확인한 내용으로 프롬프트를 만들었습니다/);
+  assert.match(completed.messages.at(-1).text, /아직 확인하지 않은 항목/);
+});
+
+test("completeState reports a full ten-step completion honestly when every item is answered", () => {
+  const answers = Object.fromEntries(steps.map((step) => [step.key, "확인됨"]));
+  const completed = completeState({ ...createInitialState(), answers }, { finalPrompt: "p", referenceNotes: "" });
   assert.match(completed.messages.at(-1).text, /10단계 확인이 끝났습니다/);
+  assert.doesNotMatch(completed.messages.at(-1).text, /아직 확인하지 않은 항목/);
+});
+
+test("appendAiQuestion merges captured facts into step answers and tracks the pending step", () => {
+  const started = startRequest(createInitialState(), "발표 순서 앱");
+  const asked = appendAiQuestion(started, {
+    question: "학생이 직접 쓰나요?",
+    stepKey: "useScene",
+    capturedFacts: { output: "발표 순서 정하는 웹앱", outputKind: "app", bogus: "무시" }
+  });
+  assert.equal(asked.answers.output, "발표 순서 정하는 웹앱");
+  assert.equal(asked.answers.bogus, undefined);
+  const placeholderFacts = appendAiQuestion(asked, { question: "q", capturedFacts: { teacherJudgment: "선생님이 정할 부분(아직 미확인)", output: "다른 값" } });
+  assert.equal(placeholderFacts.answers.teacherJudgment, undefined);
+  assert.equal(placeholderFacts.answers.output, "발표 순서 정하는 웹앱");
+  assert.equal(asked.pendingStepKey, "useScene");
+  const answered = recordConversationAnswer(asked, "학생이 직접 씁니다", null);
+  assert.equal(answered.answers.useScene, "학생이 직접 씁니다");
+  assert.equal(answered.pendingStepKey, "");
+  assert.equal(answeredStepCount(answered), 2);
 });
 
 test("applyRevisionState replaces the final prompt and appends a teacher-facing summary", () => {

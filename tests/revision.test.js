@@ -38,10 +38,10 @@ test("revisePrompt removes old feedback even when it contains a bracketed headin
 });
 
 test("summarizeRevision returns teacher-facing summaries", () => {
-  assert.match(summarizeRevision("더 부드럽게"), /부드럽/);
-  assert.match(summarizeRevision("더 구체적으로"), /구체/);
-  assert.match(summarizeRevision("개인정보 안내를 조정"), /개인정보/);
-  assert.match(summarizeRevision("짧게"), /분량/);
+  assert.match(summarizeRevision("더 부드럽게"), /요청하신 대로 반영했습니다: “더 부드럽게”/);
+  assert.match(summarizeRevision("개인정보 안내를 덜 부담스럽게"), /덜 부담스럽게/);
+  assert.doesNotMatch(summarizeRevision("개인정보 안내를 덜 부담스럽게"), /더 분명하게/);
+  assert.match(summarizeRevision("짧게"), /“짧게”/);
 });
 
 test("buildRevisionMessages asks the selected AI model to rewrite the saved prompt", () => {

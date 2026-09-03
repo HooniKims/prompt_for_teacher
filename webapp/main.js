@@ -1,6 +1,7 @@
 import { LOCAL_MODEL_ID, modelProfile } from "./modules/modelProfile.js";
 import { steps } from "./modules/steps.js";
 import {
+  answeredStepCount,
   appendAssistantMessage,
   appendAiQuestion,
   applyRevisionState,
@@ -10,7 +11,8 @@ import {
   recordConversationAnswer,
   restoreDraft,
   setAwaitingAi,
-  startRequest
+  startRequest,
+  unansweredSteps
 } from "./modules/state.js";
 import { buildFinalPrompt, ensureFinalPromptRequirements, splitFinalPromptSections } from "./modules/promptBuilder.js";
 import { buildReferenceNotes } from "./modules/referenceNotes.js";
@@ -30,7 +32,7 @@ import {
   writeSettings
 } from "./modules/storage.js?v=shared-llm-endpoint";
 import { createMemoryItemsFromSession, mergeMemoryItems, selectMemoryItems } from "./modules/memory.js";
-import { createUi } from "./modules/ui.js?v=summary-fallback-2";
+import { createUi } from "./modules/ui.js?v=novice-review-1";
 import {
   DEFAULT_LLM_ENDPOINT,
   DEFAULT_OPENAI_MODEL_ID,
@@ -44,6 +46,8 @@ import { buildNextQuestionMessages, buildSegmentedFinalPromptMessages, parsePlan
 const WELCOME_MESSAGE = "짧게 시작해도 괜찮습니다. 만들고 싶은 자료, 앱, 프로그램, 문서를 한 문장으로 적어주세요.\n\n예: 학급 규칙 안내문 만들고 싶어요.\n예: 우리 반 독서 기록 앱을 만들고 싶어요.\n예: 수행평가 루브릭을 만들 프롬프트가 필요해요.";
 const MIN_REQUIRED_QUESTIONS = steps.length;
 const MAX_TOTAL_QUESTIONS = 15;
+// 10개 항목이 모두 채워진 뒤 허용하는 추가 질문 수
+const MAX_FOLLOWUPS_AFTER_COVERAGE = 2;
 
 let settings = readSettings();
 let memoryStore = readMemoryStore();
@@ -81,7 +85,8 @@ function init() {
     onClearDraft: handleClearDraft,
     onToggleTheme: handleToggleTheme,
     onSetGuideMode: handleSetGuideMode,
-    onSetDefaultModel: handleSetDefaultModel
+    onSetDefaultModel: handleSetDefaultModel,
+    onFinishEarly: handleFinishEarly
   });
 
   applyTheme();
@@ -845,11 +850,13 @@ function shouldUseSegmentedFinalPrompt() {
 function isExplicitFinalRequest(text = "") {
   const normalized = String(text).replace(/\s+/g, " ").trim();
   if (!normalized) return false;
-  return /최종|완성|만들어|정리|생성|작성/.test(normalized)
-    || /여기까지만|여기까지|이 정도로|지금까지|현재까지/.test(normalized)
-    || /(질문|물어).*(그만|중단|끝|하지 마|안 해|안할|안 할)/.test(normalized)
-    || /(그만|중단|끝).*(질문|물어)/.test(normalized)
-    || /추가 질문.*(없|말|그만|중단|끝)/.test(normalized);
+  // 완료 의도가 문장으로 분명할 때만 인식한다. "만들어", "정리" 같은 낱말 하나로는 판단하지 않는다.
+  const finishVerb = /(최종|프롬프트|결과)[^.!?]{0,12}(만들어|완성|정리|생성|작성)[^.!?]{0,6}(줘|주세요|해줘|해 주세요|하자|해주세요|할게요|해요)/;
+  const stopAsking = /(질문|물어)[^.!?]{0,8}(그만|중단|끝|하지 마|안 해|안할|안 할|없이)/;
+  const stopThenAsk = /(그만|중단|끝)[^.!?]{0,6}(질문|물어)/;
+  const enough = /(여기까지만|여기까지|이 정도로|지금까지|현재까지)[^.!?]{0,10}(만들어|완성|정리|생성|작성|끝|마무리)/;
+  const noMore = /추가 질문[^.!?]{0,6}(없|말|그만|중단|끝)/;
+  return finishVerb.test(normalized) || stopAsking.test(normalized) || stopThenAsk.test(normalized) || enough.test(normalized) || noMore.test(normalized);
 }
 
 function isLocalFinalRequest(text = "") {
@@ -868,21 +875,34 @@ function shouldCompleteLocalFlow(text = "") {
   return answeredQuestionCount() >= MAX_TOTAL_QUESTIONS || userTurnCount >= MAX_TOTAL_QUESTIONS + 1 || (hasEnoughAnswersForFinal() && isLocalFinalRequest(text));
 }
 
+function hasFullCoverage(currentState = state) {
+  return answeredStepCount(currentState) >= steps.length;
+}
+
 function hasEnoughLocalStepsForFinal(currentState = state) {
   if (!shouldUseSegmentedFinalPrompt()) return true;
+  if (hasFullCoverage(currentState)) return true;
   const answeredAfterSeed = answeredQuestionCount(currentState);
   return answeredAfterSeed >= MIN_REQUIRED_QUESTIONS;
 }
 
 function hasEnoughAnswersForFinal(currentState = state) {
-  return answeredQuestionCount(currentState) >= MIN_REQUIRED_QUESTIONS;
+  // 10개 항목이 모두 확인됐거나, 답변이 10번을 넘으면 완성할 수 있다.
+  return hasFullCoverage(currentState) || answeredQuestionCount(currentState) >= MIN_REQUIRED_QUESTIONS;
+}
+
+function followUpQuestionCount(currentState = state) {
+  return Number.isInteger(currentState.followUpQuestions) ? currentState.followUpQuestions : 0;
 }
 
 function hasReachedQuestionLimit(currentState = state) {
-  return answeredQuestionCount(currentState) >= MAX_TOTAL_QUESTIONS;
+  if (answeredQuestionCount(currentState) >= MAX_TOTAL_QUESTIONS) return true;
+  return hasFullCoverage(currentState) && followUpQuestionCount(currentState) >= MAX_FOLLOWUPS_AFTER_COVERAGE;
 }
 
 function inferNextStepIndex(currentState = state) {
+  const firstUnanswered = unansweredSteps(currentState)[0];
+  if (firstUnanswered) return steps.findIndex((step) => step.key === firstUnanswered.key);
   const answeredAfterSeed = answeredQuestionCount(currentState);
   return Math.min(steps.length - 1, Math.max(0, answeredAfterSeed));
 }
@@ -891,19 +911,23 @@ function fallbackQuestionForCurrentState(currentState = state) {
   const step = steps[inferNextStepIndex(currentState)] ?? steps[steps.length - 1];
   return {
     question: step.question,
+    stepKey: step.key,
     suggestedOptions: step.options.map((option) => ({ ...option, optional: true })),
     capturedFacts: currentState.intentProfile ?? {}
   };
 }
 
 function appendQuestionToCurrentFlow(currentState, question) {
-  return appendAiQuestion(
+  const nextState = appendAiQuestion(
     {
       ...currentState,
       activeStepIndex: inferNextStepIndex(currentState)
     },
     question
   );
+  // 10개 항목이 다 찬 뒤에 나온 질문만 추가 질문으로 센다.
+  const followUpQuestions = hasFullCoverage(nextState) ? followUpQuestionCount(nextState) + 1 : 0;
+  return { ...nextState, followUpQuestions };
 }
 
 async function checkLocalLlm() {
@@ -925,17 +949,37 @@ async function checkLocalLlm() {
   render();
 }
 
-async function handleSubmit(text) {
+function findOptionByLetter(text = "") {
+  const match = String(text).trim().match(/^([a-dA-D])[.)]?$/);
+  if (!match) return null;
+  const letter = match[1].toUpperCase();
+  const lastMessage = state.messages.at(-1);
+  if (!lastMessage?.options?.length || state.completed) return null;
+  return lastMessage.options.find((option) => String(option.id).toUpperCase() === letter) ?? null;
+}
+
+function handleSubmit(text) {
   if (state.isAwaitingAi) {
-    ui.showToast("AI가 답변하는 중입니다. 잠시만 기다려주세요.");
-    return;
+    ui.showToast("AI가 답변하는 중입니다. 잠시만 기다려주세요. 적은 내용은 그대로 남겨 두었습니다.");
+    return false;
   }
 
   if (state.llmStatus !== "ready") {
-    ui.showToast("AI 준비 상태를 먼저 확인해주세요.");
-    return;
+    ui.showToast("AI 준비 상태를 먼저 확인해주세요. 적은 내용은 그대로 남겨 두었습니다.");
+    return false;
   }
 
+  const letterOption = findOptionByLetter(text);
+  if (letterOption) {
+    handleOption(letterOption);
+    return true;
+  }
+
+  submitText(text);
+  return true;
+}
+
+async function submitText(text) {
   if (!state.initialRequest) {
     state = startRequest(state, text);
     persistDraftIfNeeded();
@@ -962,16 +1006,24 @@ async function handleSubmit(text) {
   }
 }
 
+async function handleFinishEarly() {
+  if (state.isAwaitingAi || state.llmStatus !== "ready" || !state.initialRequest || state.completed) return;
+  const missing = unansweredSteps(state);
+  const answered = answeredStepCount(state);
+  if (missing.length) {
+    const missingNames = missing.map((step) => step.shortTitle || step.title).join(", ");
+    const ok = window.confirm(`${steps.length}개 항목 중 ${answered}개만 확인했습니다.\n아직 확인하지 않은 항목: ${missingNames}\n\n지금까지 내용으로 프롬프트를 만들까요? 빠진 항목은 프롬프트에 "아직 확인하지 않음"으로 표시됩니다.`);
+    if (!ok) return;
+  }
+  await completeWithAvailableFinalPrompt({ allowIncomplete: true });
+}
+
 async function handleOption(option) {
   if (state.isAwaitingAi || state.llmStatus !== "ready") return;
   state = recordConversationAnswer(state, option.label, option);
   persistDraftIfNeeded();
   render();
   collapseMobileTopbarAfterInput();
-  if (isExplicitFinalRequest(option.label)) {
-    await completeWithAvailableFinalPrompt({ allowIncomplete: true });
-    return;
-  }
   if (shouldCompleteLocalFlow(option.label)) {
     await completeWithSegmentedFinalPrompt();
     return;
@@ -990,7 +1042,7 @@ async function requestNextQuestion() {
   }
 
   const generation = ++requestGeneration;
-  state = setAwaitingAi(state, true);
+  state = setAwaitingAi(state, true, "question");
   render();
 
   const selectedMemory = selectMemoryItems(memoryStore.items, settings);
@@ -1004,7 +1056,8 @@ async function requestNextQuestion() {
       turns: state.conversationTurns,
       memoryItems: selectedMemory,
       guideMode: settings.guideMode,
-      finalPromptMode: shouldUseSegmentedFinalPrompt() ? "segmented" : "single"
+      finalPromptMode: shouldUseSegmentedFinalPrompt() ? "segmented" : "single",
+      answers: state.answers
     }),
     maxTokens: maxTokensForTask("question"),
     signal: controller?.signal
@@ -1068,6 +1121,7 @@ async function requestNextQuestion() {
 
   state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), {
     question: value.question,
+    stepKey: value.stepKey || "",
     suggestedOptions: value.suggestedOptions?.length ? value.suggestedOptions : quickOptionsForIntent(value.capturedFacts),
     capturedFacts: value.capturedFacts
   });
@@ -1112,6 +1166,9 @@ async function completeWithSegmentedFinalPrompt(selectedMemory = selectMemoryIte
     return;
   }
 
+  state = setAwaitingAi(state, true, "final");
+  render();
+
   const fallbackPrompt = buildFinalPrompt(state, { memoryItems: selectedMemory });
   const fallbackSections = splitFinalPromptSections(fallbackPrompt);
   const requiredReferenceNotes = buildReferenceNotes(state.answerMeta, state);
@@ -1119,7 +1176,7 @@ async function completeWithSegmentedFinalPrompt(selectedMemory = selectMemoryIte
   const teacherSummary = await generateFinalSegment("teacher_summary", selectedMemory, fallbackSections.teacherSummary);
   const aiPrompt = await generateFinalSegment("ai_prompt", selectedMemory, fallbackSections.aiPrompt);
   const referenceNotesFromModel = await generateFinalSegment("reference_notes", selectedMemory, "");
-  const finalPrompt = ensureFinalPromptRequirements(`[교사용 요약]\n${teacherSummary.replace(/^\[교사용 요약\]\s*/m, "").trim()}\n\n[AI 실행용 프롬프트]\n${aiPrompt.replace(/^\[AI 실행용 프롬프트\]\s*/m, "").trim()}`, fallbackPrompt);
+  const finalPrompt = ensureFinalPromptRequirements(`[교사용 요약]\n${teacherSummary.replace(/^\[교사용 요약\]\s*/m, "").trim()}\n\n[AI 실행용 프롬프트]\n${aiPrompt.replace(/^\[AI 실행용 프롬프트\]\s*/m, "").trim()}`, fallbackPrompt, state);
   const referenceNotes = referenceNotesFromModel
     ? `${requiredReferenceNotes}\n\nAI가 정리한 추가 참고:\n${referenceNotesFromModel}`.trim()
     : requiredReferenceNotes;
@@ -1131,7 +1188,7 @@ async function completeWithSegmentedFinalPrompt(selectedMemory = selectMemoryIte
 
 async function completeWithFinalPrompt(finalPromptFromModel, referenceNotesFromModel = "") {
   const fallbackPrompt = buildFinalPrompt(state, { memoryItems: selectMemoryItems(memoryStore.items, settings) });
-  const finalPrompt = ensureFinalPromptRequirements(finalPromptFromModel, fallbackPrompt);
+  const finalPrompt = ensureFinalPromptRequirements(finalPromptFromModel, fallbackPrompt, state);
   const requiredReferenceNotes = buildReferenceNotes(state.answerMeta, state);
   const referenceNotes = referenceNotesFromModel
     ? `${requiredReferenceNotes}\n\nAI가 정리한 추가 참고:\n${referenceNotesFromModel}`.trim()
@@ -1148,7 +1205,7 @@ async function handleRevision(text) {
     messages: [...state.messages, { role: "user", text }]
   };
 
-  state = setAwaitingAi(stateWithUserMessage, true);
+  state = setAwaitingAi(stateWithUserMessage, true, "revision");
   render();
 
   const result = await chatCompletionWithRetry({
@@ -1261,7 +1318,7 @@ function handleSetGuideMode(mode) {
   const result = writeSettings(settings);
   if (!result.ok) ui.showToast("질문 방식 설정을 저장하지 못했습니다.");
   render();
-  ui.showToast(mode === "thorough" ? "꼼꼼 확인으로 바꿨습니다." : "친절 모드로 바꿨습니다.");
+  ui.showToast(mode === "thorough" ? "꼼꼼 모드로 바꿨습니다. 모호한 답은 한 번 더 확인합니다." : "친절 모드로 바꿨습니다. 꼭 필요한 것만 묻습니다.");
 }
 
 function handleSetDefaultModel(provider) {
@@ -1275,7 +1332,7 @@ function handleSetDefaultModel(provider) {
   const result = writeSettings(settings);
   if (!result.ok) ui.showToast("기본 모델 설정을 저장하지 못했습니다.");
   render();
-  ui.showToast(provider === "openai" ? "기본 모델을 5.4 nano로 바꿨습니다." : "기본 모델을 e4b로 바꿨습니다.");
+  ui.showToast(provider === "openai" ? "기본 AI를 OpenAI로 바꿨습니다." : "기본 AI를 학교 AI로 바꿨습니다.");
   checkLocalLlm();
 }
 

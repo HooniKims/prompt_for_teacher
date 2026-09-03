@@ -3,19 +3,74 @@ import {
   buildRegulationPromptRequirements
 } from "./regulationKnowledge.js";
 
+const NOT_CONFIRMED = "아직 확인하지 않음";
+
 const DEFAULTS = {
   initialRequest: "사용자가 입력한 요청",
   output: "필요한 산출물",
-  useScene: "사용 장면",
-  context: "교육 및 업무 맥락",
+  useScene: NOT_CONFIRMED,
+  context: NOT_CONFIRMED,
   goal: "교사의 목적에 맞는 결과물을 만든다.",
   teacherJudgment: "교사가 직접 판단해야 하는 핵심 선택",
   sourceMaterial: "사용자가 제공하는 자료",
   safety: "개인정보 포함 여부 확인 필요",
-  externalService: "외부 서비스 사용 여부 확인 필요",
+  externalService: "저장 방식과 접속 방식 확인 필요",
   format: "사용자가 원하는 결과물 모습",
   quality: "현장에서 바로 활용할 수 있어야 한다."
 };
+
+function inferTechDirection(session = {}) {
+  const answerMeta = session.answerMeta ?? {};
+  const profile = session.intentProfile ?? {};
+  const text = collectText(session);
+  const optionTech = answerMeta.externalService?.tech;
+  const needsLogin = profile.needsLogin === true || optionTech === "server-login" || /로그인|각자 자기|제출/.test(text);
+  let storage = typeof profile.needsStorage === "string" ? profile.needsStorage : "";
+  if (!storage) {
+    if (optionTech === "none") storage = "none";
+    else if (optionTech === "local") storage = "local";
+    else if (optionTech === "server" || optionTech === "server-login") storage = "server";
+    else if (/여러 사람|함께 저장|같이 보|인터넷으로 접속|학생이 직접|제출/.test(text)) storage = "server";
+    else if (/저장하지 않|화면에서만|임시로/.test(text)) storage = "none";
+    else if (/저장/.test(text)) storage = "local";
+  }
+  const isApp = /앱|웹앱|프로그램|사이트|도구/.test(`${session.initialRequest ?? ""} ${session.answers?.output ?? ""}`) || /app/.test(String(profile.outputKind ?? ""));
+  return { storage, needsLogin, isApp };
+}
+
+function collectText(session = {}) {
+  const turns = Array.isArray(session.conversationTurns) ? session.conversationTurns.map((turn) => (typeof turn?.text === "string" ? turn.text : "")) : [];
+  return [session.initialRequest ?? "", ...Object.values(session.answers ?? {}), ...turns].join("\n");
+}
+
+export function buildTechDirectionSection(session = {}) {
+  const { storage, needsLogin, isApp } = inferTechDirection(session);
+  if (!isApp) return "";
+
+  const lines = ["[기술 방향과 보안 기본]", "- 이 프롬프트는 AI에게 코딩을 시키는 상황을 전제로 한다. 아래 방향을 따르되, 더 단순한 방법이 있으면 이유와 함께 제안한다."];
+  if (storage === "none") {
+    lines.push("- 저장이 필요 없으므로 서버나 데이터베이스 없이 브라우저에서만 동작하는 단일 HTML 웹앱으로 만든다. 새로고침하면 내용이 사라진다는 점을 화면에 안내한다.");
+  } else if (storage === "local") {
+    lines.push("- 혼자 쓰고 내 컴퓨터에만 남으면 되므로 서버 없이 브라우저 저장(localStorage 또는 IndexedDB)을 사용한다. 내보내기/가져오기(JSON 파일) 기능을 넣어 백업할 수 있게 한다.");
+    lines.push("- 학생 정보가 들어간다면 브라우저에 평문으로 오래 남지 않도록 삭제 기능과 안내 문구를 넣는다.");
+  } else if (storage === "server") {
+    lines.push("- 여러 사람이 접속해 같은 내용을 봐야 하므로 서버와 데이터베이스가 필요하다. 처음 만드는 사람도 다룰 수 있게 관리형 서비스(예: Supabase, Firebase 같은 무료 시작 가능 서비스) 중 하나를 골라 이유와 함께 제안한다.");
+    lines.push("- 비밀키(API 키, 데이터베이스 비밀번호)는 코드에 직접 쓰지 않고 .env 같은 설정 파일이나 배포 환경 변수에 두며, 공개 저장소에 올리지 않도록 .gitignore에 포함한다.");
+    lines.push("- 누가 무엇을 볼 수 있는지 권한 검사는 화면 숨김이 아니라 서버(또는 데이터베이스 규칙)에서 강제한다.");
+    lines.push("- 사용자가 입력한 값은 서버에서 다시 검증하고, HTTPS로만 접속하게 한다.");
+    lines.push("- 데이터 백업 방법, 삭제 방법, 접근 기록(누가 언제 봤는지)을 구현 계획에 포함한다.");
+  } else {
+    lines.push("- 저장 방식이 아직 확정되지 않았다. 저장 필요 없음 / 내 컴퓨터에만 저장 / 여러 사람이 함께 사용 중 어느 쪽인지 먼저 확인 질문을 하고, 확인 전에는 가장 단순한 방식(브라우저 저장)으로 초안을 만든다.");
+  }
+  if (needsLogin) {
+    lines.push("- 로그인이 필요하므로 직접 비밀번호 저장 로직을 만들지 말고 검증된 로그인 서비스(관리형 서비스의 로그인 기능)를 쓴다. 학생은 자기 것만 보게 하고, 교사와 학생 역할을 나눈다.");
+  } else if (storage === "server") {
+    lines.push("- 로그인 없이 쓰는 경우에도 링크나 코드를 아는 사람만 들어올 수 있게 하고, 교사용 화면은 별도 비밀번호나 로그인으로 보호한다.");
+  }
+  lines.push("- 개인정보는 최소한만 받고, 이름 대신 번호나 가명을 쓸 수 있는 선택지를 둔다. 테스트는 가짜 데이터로 한다.");
+  lines.push("- 외부 라이브러리는 꼭 필요한 것만 쓰고, 처음 만드는 사람이 읽을 수 있게 파일 구조와 실행 방법을 README에 적는다.");
+  return lines.join("\n");
+}
 
 function valueOrDefault(value, fallback) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -46,6 +101,16 @@ function insertAfterAiPromptHeading(prompt, section) {
 
   const insertAt = match.index + match.length;
   return `${prompt.slice(0, insertAt).trimEnd()}\n\n${section}\n\n${prompt.slice(insertAt).trimStart()}`.trim();
+}
+
+function appendToAiPrompt(prompt, section) {
+  const heading = "[AI 실행용 프롬프트]";
+  const match = findAiPromptHeading(prompt);
+  if (!match) return `${prompt.trim()}\n\n${heading}\n\n${section}`.trim();
+
+  const missingInfoIndex = prompt.indexOf("[정보가 부족할 때]", match.index);
+  if (missingInfoIndex === -1) return `${prompt.trim()}\n\n${section}`.trim();
+  return `${prompt.slice(0, missingInfoIndex).trimEnd()}\n\n${section}\n\n${prompt.slice(missingInfoIndex).trimStart()}`.trim();
 }
 
 function hasTeacherSummary(text = "") {
@@ -125,30 +190,41 @@ export function buildPrivacyCondition(answerMeta = {}) {
 
 function summarizeForTeacher(session = {}) {
   const answers = session.answers ?? {};
-  const userTurns = userTurnTexts(session);
-  const detailTurns = userTurns.slice(1);
-  const conversationSummary = userTurns.length
-    ? userTurns.slice(0, 6).map((text) => `  - ${text}`).join("\n")
-    : "  - 아직 대화에서 확인한 추가 내용이 없습니다.";
   const initialRequest = valueOrDefault(session.initialRequest, DEFAULTS.initialRequest);
   const output = valueOrDefault(answers.output, initialRequest || DEFAULTS.output);
-  const useScene = valueOrDefault(answers.useScene, findTurnText(detailTurns, /교사|학생|로그인|평가|수업|피드백/) || DEFAULTS.useScene);
-  const context = valueOrDefault(answers.context, findTurnText(detailTurns, /초등|중학|고등|학년|수행평가|보충|학습|수업/) || DEFAULTS.context);
-  const goal = valueOrDefault(answers.goal, findTurnText(detailTurns, /목표|안내|관리|정리|제공|확인/) || DEFAULTS.goal);
-  const safety = valueOrDefault(answers.safety, findTurnText(detailTurns, /개인정보|학생 이름|학번|상담|가명|실제 학생/) || findTurnText(userTurns, /개인정보|학생 이름|학번|상담|가명|실제 학생/) || DEFAULTS.safety);
-  const externalService = valueOrDefault(answers.externalService, findTurnText(detailTurns, /외부|업체|서버|AI|로그인|심의|학교 내부/) || DEFAULTS.externalService);
-
-  return `[교사용 요약]
-- 만들 것: ${output}
-- 사용 장면: ${useScene}
-- 맥락: ${context}
-- 목표: ${goal}
-- 시작 요청: ${initialRequest}
-- 대화에서 확인한 내용:
-${conversationSummary}
-- 개인정보 확인: ${safety}
-- 외부 서비스/심의 확인: ${externalService}
-- 교사가 특히 확인할 점: 실제 학생 정보 사용 여부, 학생이 직접 로그인하는지, 외부 서비스나 업체가 학생 데이터를 처리하는지, 학교 내부 검토가 필요한지`;
+  const useScene = valueOrDefault(answers.useScene, NOT_CONFIRMED);
+  const context = valueOrDefault(answers.context, NOT_CONFIRMED);
+  const goal = valueOrDefault(answers.goal, NOT_CONFIRMED);
+  const teacherJudgment = valueOrDefault(answers.teacherJudgment, NOT_CONFIRMED);
+  const safety = valueOrDefault(answers.safety, NOT_CONFIRMED);
+  const externalService = valueOrDefault(answers.externalService, NOT_CONFIRMED);
+  const { storage, needsLogin, isApp } = inferTechDirection(session);
+  const storageLabel = storage === "none"
+    ? "저장 없이 화면에서만 사용"
+    : storage === "local"
+      ? "내 컴퓨터(브라우저)에만 저장"
+      : storage === "server"
+        ? `여러 사람이 접속해 함께 저장${needsLogin ? ", 로그인 필요" : ""}`
+        : NOT_CONFIRMED;
+  const lines = [
+    "[교사용 요약]",
+    `- 만들 것: ${output}`,
+    `- 사용 장면: ${useScene}`,
+    `- 대상과 맥락: ${context}`,
+    `- 목표: ${goal}`,
+    `- 선생님이 직접 정할 것: ${teacherJudgment}`,
+    `- 개인정보: ${safety}`,
+    `- 저장과 접속: ${externalService}`
+  ];
+  if (isApp) lines.push(`- 기술 방향: ${storageLabel}`);
+  const capturedCount = Object.values(answers).filter((value) => typeof value === "string" && value.trim()).length;
+  const turns = userTurnTexts(session).slice(1, 5);
+  if (capturedCount < 3 && turns.length) {
+    lines.push("- 대화에서 확인한 내용:");
+    turns.forEach((text) => lines.push(`  - ${text}`));
+  }
+  lines.push("- 교사가 특히 확인할 점: 실제 학생 정보 사용 여부, 학생이 직접 로그인하는지, 외부 서비스가 학생 데이터를 다루는지, 학교 내부 검토가 필요한지");
+  return lines.join("\n");
 }
 
 function userTurnTexts(session = {}) {
@@ -183,11 +259,11 @@ export function buildFinalPrompt(session = {}, options = {}) {
   const format = valueOrDefault(answers.format, findTurnText(detailTurns, /교사용 요약|AI 실행용|프롬프트|분리|화면|모듈/) || DEFAULTS.format);
   const quality = valueOrDefault(answers.quality, findTurnText(detailTurns, /완성 기준|초보|개발 AI|바로|구체적|수준/) || DEFAULTS.quality);
 
+  const techDirection = buildTechDirectionSection(session);
   const sections = [
     memoryContext,
     summarizeForTeacher(session),
     `[AI 실행용 프롬프트]`,
-    detailedExecutionGuideSection(),
     `[역할]
 너는 교사의 수업 준비와 행정업무를 돕는 전문적인 AI 협력자이다. 교사가 판단해야 할 부분은 대신 결정하지 않고, 실행 가능한 초안과 점검 기준을 함께 제안한다.`,
     `[언어]
@@ -227,6 +303,8 @@ ${privacyConditions.map((condition) => `- ${condition}`).join("\n")}`,
 - ${quality}
 - 표현은 교사가 바로 검토하고 고칠 수 있게 명확해야 한다.
 - 막연한 조언보다 실제 문장, 표, 체크리스트처럼 옮겨 쓸 수 있는 형태를 우선한다.`,
+    techDirection,
+    detailedExecutionGuideSection(),
     buildFooterPolicyPrompt(),
     `[정보가 부족할 때]
 - 중요한 정보가 부족하면 추측하지 말고 확인 질문을 먼저 하라.
@@ -236,7 +314,7 @@ ${privacyConditions.map((condition) => `- ${condition}`).join("\n")}`,
   return sections.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export function ensureFinalPromptRequirements(prompt = "", fallbackPrompt = "") {
+export function ensureFinalPromptRequirements(prompt = "", fallbackPrompt = "", session = null) {
   let nextPrompt = valueOrDefault(prompt, fallbackPrompt);
   const fallback = valueOrDefault(fallbackPrompt, "");
 
@@ -260,12 +338,17 @@ export function ensureFinalPromptRequirements(prompt = "", fallbackPrompt = "") 
 - 각 모듈은 역할, 주요 기능, 입력 데이터, 출력 데이터, 수정할 때 주의할 점을 포함한다.`);
   }
 
+  if (session && !/기술\s*방향과\s*보안\s*기본/.test(nextPrompt)) {
+    const techDirection = buildTechDirectionSection(session);
+    if (techDirection) nextPrompt = appendToAiPrompt(nextPrompt, techDirection);
+  }
+
   if (!hasDetailedExecutionGuide(nextPrompt)) {
-    nextPrompt = insertAfterAiPromptHeading(nextPrompt, detailedExecutionGuideSection());
+    nextPrompt = appendToAiPrompt(nextPrompt, detailedExecutionGuideSection());
   }
 
   if (!/푸터\s*및\s*정책\s*문서/.test(nextPrompt)) {
-    nextPrompt = insertAfterAiPromptHeading(nextPrompt, buildFooterPolicyPrompt());
+    nextPrompt = appendToAiPrompt(nextPrompt, buildFooterPolicyPrompt());
   }
 
   return nextPrompt.replace(/\n{3,}/g, "\n\n").trim();

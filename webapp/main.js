@@ -1,7 +1,8 @@
 import { LOCAL_MODEL_ID, modelProfile } from "./modules/modelProfile.js";
-import { steps } from "./modules/steps.js";
+import { steps, wrapUpSteps } from "./modules/steps.js";
 import {
   answeredStepCount,
+  answeredWrapUpCount,
   appendAssistantMessage,
   appendAiQuestion,
   applyRevisionState,
@@ -32,7 +33,7 @@ import {
   writeSettings
 } from "./modules/storage.js?v=shared-llm-endpoint";
 import { createMemoryItemsFromSession, mergeMemoryItems, selectMemoryItems } from "./modules/memory.js";
-import { createUi } from "./modules/ui.js?v=novice-review-1";
+import { createUi } from "./modules/ui.js?v=wrapup-1";
 import {
   DEFAULT_LLM_ENDPOINT,
   DEFAULT_OPENAI_MODEL_ID,
@@ -41,7 +42,7 @@ import {
   createLocalLlmSettings,
   listModels
 } from "./modules/localLlmClient.js?v=shared-llm-endpoint";
-import { buildNextQuestionMessages, buildSegmentedFinalPromptMessages, parsePlannerResponse, quickOptionsForIntent } from "./modules/conversationPlanner.js";
+import { buildNextQuestionMessages, buildSegmentedFinalPromptMessages, chooseNextStepKey, parsePlannerResponse, quickOptionsForIntent } from "./modules/conversationPlanner.js?v=wrapup-1";
 
 const WELCOME_MESSAGE = "짧게 시작해도 괜찮습니다. 만들고 싶은 자료, 앱, 프로그램, 문서를 한 문장으로 적어주세요.\n\n예: 학급 규칙 안내문 만들고 싶어요.\n예: 우리 반 독서 기록 앱을 만들고 싶어요.\n예: 수행평가 루브릭을 만들 프롬프트가 필요해요.";
 const MIN_REQUIRED_QUESTIONS = steps.length;
@@ -56,6 +57,9 @@ let state = restoreDraft(readActiveDraft()) ?? createInitialState();
 let requestGeneration = 0;
 let demoTimer = 0;
 let mobileTopbarExpanded = true;
+
+const APP_VERSION = "wrapup-1";
+window.__promptGuideVersion = APP_VERSION;
 
 const ui = createUi();
 
@@ -875,8 +879,13 @@ function shouldCompleteLocalFlow(text = "") {
   return answeredQuestionCount() >= MAX_TOTAL_QUESTIONS || userTurnCount >= MAX_TOTAL_QUESTIONS + 1 || (hasEnoughAnswersForFinal() && isLocalFinalRequest(text));
 }
 
-function hasFullCoverage(currentState = state) {
+function hasCoreCoverage(currentState = state) {
   return answeredStepCount(currentState) >= steps.length;
+}
+
+// 기본 10개와 마무리 3개(범위, 우선순위, 성공 기준)가 모두 확인됐을 때
+function hasFullCoverage(currentState = state) {
+  return hasCoreCoverage(currentState) && answeredWrapUpCount(currentState) >= wrapUpSteps.length;
 }
 
 function hasEnoughLocalStepsForFinal(currentState = state) {
@@ -887,8 +896,8 @@ function hasEnoughLocalStepsForFinal(currentState = state) {
 }
 
 function hasEnoughAnswersForFinal(currentState = state) {
-  // 10개 항목이 모두 확인됐거나, 답변이 10번을 넘으면 완성할 수 있다.
-  return hasFullCoverage(currentState) || answeredQuestionCount(currentState) >= MIN_REQUIRED_QUESTIONS;
+  // 13개 항목이 모두 확인됐거나, 답변이 13번을 넘으면 완성할 수 있다.
+  return hasFullCoverage(currentState) || answeredQuestionCount(currentState) >= MIN_REQUIRED_QUESTIONS + wrapUpSteps.length;
 }
 
 function followUpQuestionCount(currentState = state) {
@@ -914,6 +923,26 @@ function fallbackQuestionForCurrentState(currentState = state) {
     stepKey: step.key,
     suggestedOptions: step.options.map((option) => ({ ...option, optional: true })),
     capturedFacts: currentState.intentProfile ?? {}
+  };
+}
+
+// AI가 지정 항목이 아닌 것을 물으면 지정 항목의 기본 질문으로 바꾼다. capturedFacts는 그대로 살린다.
+function keepQuestionOnTrack(value, nextStepKey) {
+  const targetStep = [...steps, ...wrapUpSteps].find((step) => step.key === nextStepKey);
+  const onTrack = !targetStep || !value.stepKey || value.stepKey === nextStepKey;
+  if (onTrack) {
+    return {
+      question: value.question,
+      stepKey: value.stepKey || nextStepKey || "",
+      suggestedOptions: value.suggestedOptions?.length ? value.suggestedOptions : quickOptionsForIntent(value.capturedFacts),
+      capturedFacts: value.capturedFacts
+    };
+  }
+  return {
+    question: targetStep.question,
+    stepKey: targetStep.key,
+    suggestedOptions: targetStep.options.map((option) => ({ ...option, optional: true })),
+    capturedFacts: value.capturedFacts
   };
 }
 
@@ -1010,9 +1039,13 @@ async function handleFinishEarly() {
   if (state.isAwaitingAi || state.llmStatus !== "ready" || !state.initialRequest || state.completed) return;
   const missing = unansweredSteps(state);
   const answered = answeredStepCount(state);
+  const wrapUpLeft = wrapUpSteps.length - answeredWrapUpCount(state);
   if (missing.length) {
     const missingNames = missing.map((step) => step.shortTitle || step.title).join(", ");
     const ok = window.confirm(`${steps.length}개 항목 중 ${answered}개만 확인했습니다.\n아직 확인하지 않은 항목: ${missingNames}\n\n지금까지 내용으로 프롬프트를 만들까요? 빠진 항목은 프롬프트에 "아직 확인하지 않음"으로 표시됩니다.`);
+    if (!ok) return;
+  } else if (wrapUpLeft > 0) {
+    const ok = window.confirm(`범위·우선순위·성공 기준 중 ${wrapUpLeft}개를 아직 정하지 않았습니다.\n\n지금 완성하면 개발 AI가 추천안을 먼저 제시하고 선생님 확인을 받도록 프롬프트에 적습니다. 계속할까요?`);
     if (!ok) return;
   }
   await completeWithAvailableFinalPrompt({ allowIncomplete: true });
@@ -1046,6 +1079,7 @@ async function requestNextQuestion() {
   render();
 
   const selectedMemory = selectMemoryItems(memoryStore.items, settings);
+  const nextStepKey = chooseNextStepKey(state);
   const controller = shouldUseSegmentedFinalPrompt() && typeof AbortController === "function" ? new AbortController() : null;
   const timeoutId = controller ? setTimeout(() => controller.abort(), 36000) : null;
   const result = await chatCompletionWithRetry({
@@ -1057,7 +1091,8 @@ async function requestNextQuestion() {
       memoryItems: selectedMemory,
       guideMode: settings.guideMode,
       finalPromptMode: shouldUseSegmentedFinalPrompt() ? "segmented" : "single",
-      answers: state.answers
+      answers: state.answers,
+      nextStepKey
     }),
     maxTokens: maxTokensForTask("question"),
     signal: controller?.signal
@@ -1119,12 +1154,7 @@ async function requestNextQuestion() {
     return;
   }
 
-  state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), {
-    question: value.question,
-    stepKey: value.stepKey || "",
-    suggestedOptions: value.suggestedOptions?.length ? value.suggestedOptions : quickOptionsForIntent(value.capturedFacts),
-    capturedFacts: value.capturedFacts
-  });
+  state = appendQuestionToCurrentFlow(setAwaitingAi(state, false), keepQuestionOnTrack(value, nextStepKey));
   persistDraftIfNeeded();
   render();
 }
@@ -1437,6 +1467,7 @@ function render() {
   ui.render({
     state,
     steps,
+    wrapUpSteps,
     sessions,
     settings,
     memory: memoryStore,

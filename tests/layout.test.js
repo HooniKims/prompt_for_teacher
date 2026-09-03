@@ -70,7 +70,8 @@ test("left panel keeps the checklist preview without forcing ten-step completion
   assert.match(html, /만들 것 확인/);
   assert.match(html, /결과물 모습 구체화/);
   assert.match(html, /품질 기준 및 수정 방향 확인/);
-  assert.match(ui, /steps\.forEach/);
+  assert.match(ui, /allSteps\.forEach/);
+  assert.match(ui, /마무리 3개 · 추천안만 고르면 됩니다/);
   assert.match(ui, /is-current/);
   assert.match(ui, /aria-current/);
   assert.doesNotMatch(ui, /보조 질문/);
@@ -218,8 +219,12 @@ test("local model uses segmented final prompt generation without changing OpenAI
   assert.match(main, /hasEnoughLocalStepsForFinal/);
   assert.match(main, /answeredAfterSeed >= MIN_REQUIRED_QUESTIONS/);
   assert.match(main, /MAX_FOLLOWUPS_AFTER_COVERAGE = 2/);
+  assert.match(main, /const nextStepKey = chooseNextStepKey\(state\);/);
+  assert.match(main, /function keepQuestionOnTrack/);
+  assert.match(main, /appendQuestionToCurrentFlow\(setAwaitingAi\(state, false\), keepQuestionOnTrack\(value, nextStepKey\)\)/);
   assert.match(main, /function hasFullCoverage/);
-  assert.match(main, /return hasFullCoverage\(currentState\) \|\| answeredQuestionCount\(currentState\) >= MIN_REQUIRED_QUESTIONS;/);
+  assert.match(main, /return hasFullCoverage\(currentState\) \|\| answeredQuestionCount\(currentState\) >= MIN_REQUIRED_QUESTIONS \+ wrapUpSteps\.length;/);
+  assert.match(main, /function hasCoreCoverage/);
   assert.match(main, /hasFullCoverage\(currentState\) && followUpQuestionCount\(currentState\) >= MAX_FOLLOWUPS_AFTER_COVERAGE/);
   assert.match(main, /const followUpQuestions = hasFullCoverage\(nextState\) \? followUpQuestionCount\(nextState\) \+ 1 : 0;/);
   assert.match(main, /if \(hasReachedQuestionLimit\(\)\)/);

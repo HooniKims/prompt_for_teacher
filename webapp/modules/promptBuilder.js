@@ -43,6 +43,26 @@ function collectText(session = {}) {
   return [session.initialRequest ?? "", ...Object.values(session.answers ?? {}), ...turns].join("\n");
 }
 
+const UNDECIDED_PATTERN = /아직 정하지|정하지 않|모르겠|미정/;
+
+function decidedValue(value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text && !UNDECIDED_PATTERN.test(text) ? text : "";
+}
+
+export function buildPlanningSections(session = {}) {
+  const answers = session.answers ?? {};
+  const scope = decidedValue(answers.scope);
+  const priority = decidedValue(answers.priority);
+  const success = decidedValue(answers.success);
+  const pendingNote = "(선생님 확인 필요) 아직 정하지 않았다. 첫 화면을 만들기 전에 대화 내용을 근거로 추천안을 먼저 제시하고 선생님 확인을 받은 뒤 진행한다.";
+  return [
+    `[범위]\n- ${scope || pendingNote}\n- 범위 밖 기능은 이번에 만들지 않고, 나중에 추가할 수 있게 구조만 열어 둔다.`,
+    `[우선순위]\n- ${priority || pendingNote}\n- 첫 번째 우선순위가 동작하는 것을 먼저 만들어 보여주고, 그다음 순서로 진행한다.`,
+    `[성공 기준]\n- ${success || pendingNote}\n- 완료 기준을 검토할 때 이 성공 기준으로 판단한다.`
+  ].join("\n\n");
+}
+
 export function buildTechDirectionSection(session = {}) {
   const { storage, needsLogin, isApp } = inferTechDirection(session);
   if (!isApp) return "";
@@ -217,6 +237,9 @@ function summarizeForTeacher(session = {}) {
     `- 저장과 접속: ${externalService}`
   ];
   if (isApp) lines.push(`- 기술 방향: ${storageLabel}`);
+  lines.push(`- 이번 범위: ${decidedValue(answers.scope) || "아직 정하지 않음 (개발 AI가 추천안 제시)"}`);
+  lines.push(`- 우선순위: ${decidedValue(answers.priority) || "아직 정하지 않음 (개발 AI가 추천안 제시)"}`);
+  lines.push(`- 성공 기준: ${decidedValue(answers.success) || "아직 정하지 않음 (개발 AI가 추천안 제시)"}`);
   const capturedCount = Object.values(answers).filter((value) => typeof value === "string" && value.trim()).length;
   const turns = userTurnTexts(session).slice(1, 5);
   if (capturedCount < 3 && turns.length) {
@@ -303,6 +326,7 @@ ${privacyConditions.map((condition) => `- ${condition}`).join("\n")}`,
 - ${quality}
 - 표현은 교사가 바로 검토하고 고칠 수 있게 명확해야 한다.
 - 막연한 조언보다 실제 문장, 표, 체크리스트처럼 옮겨 쓸 수 있는 형태를 우선한다.`,
+    buildPlanningSections(session),
     techDirection,
     detailedExecutionGuideSection(),
     buildFooterPolicyPrompt(),
@@ -336,6 +360,10 @@ export function ensureFinalPromptRequirements(prompt = "", fallbackPrompt = "", 
 - 앱, 웹앱, 프로그램은 기능별로 모듈화해 설계한다.
 - 화면/UI, 인증과 권한, 데이터 모델, 입력/업로드, 평가 기록, 피드백, 알림, 보안, 개인정보보호 구현, 심의 대응 자료 생성, 테스트를 분리한다.
 - 각 모듈은 역할, 주요 기능, 입력 데이터, 출력 데이터, 수정할 때 주의할 점을 포함한다.`);
+  }
+
+  if (session && !/\[범위\]/.test(nextPrompt)) {
+    nextPrompt = appendToAiPrompt(nextPrompt, buildPlanningSections(session));
   }
 
   if (session && !/기술\s*방향과\s*보안\s*기본/.test(nextPrompt)) {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTechDirectionSection, buildFinalPrompt, buildMemoryContext, buildPrivacyCondition, ensureFinalPromptRequirements, splitFinalPromptSections } from "../webapp/modules/promptBuilder.js";
+import { buildPlanningSections, buildTechDirectionSection, buildFinalPrompt, buildMemoryContext, buildPrivacyCondition, ensureFinalPromptRequirements, splitFinalPromptSections } from "../webapp/modules/promptBuilder.js";
 
 const completedSession = {
   initialRequest: "중학교 과학 단원 마무리 활동지를 만들고 싶어요.",
@@ -300,4 +300,20 @@ test("buildFinalPrompt keeps the role first and moves writing conditions to the 
   assert.ok(prompt.indexOf("[역할]") < prompt.indexOf("[상세 작성 조건]"));
   assert.ok(prompt.indexOf("[기술 방향과 보안 기본]") < prompt.indexOf("[상세 작성 조건]"));
   assert.ok(prompt.indexOf("[상세 작성 조건]") < prompt.indexOf("[정보가 부족할 때]"));
+});
+
+test("buildPlanningSections writes scope, priority and success criteria or asks the dev AI to propose them", () => {
+  const decided = buildPlanningSections({ answers: { scope: "순서 뽑기와 결과 화면까지만", priority: "뽑기 → 결과 → 다시 뽑기", success: "1분 안에 순서 확정" } });
+  assert.match(decided, /\[범위\]\n- 순서 뽑기와 결과 화면까지만/);
+  assert.match(decided, /\[우선순위\]\n- 뽑기 → 결과 → 다시 뽑기/);
+  assert.match(decided, /\[성공 기준\]\n- 1분 안에 순서 확정/);
+
+  const undecided = buildPlanningSections({ answers: { scope: "아직 정하지 않았습니다." } });
+  assert.match(undecided, /\[범위\]\n- \(선생님 확인 필요\)/);
+  assert.match(undecided, /추천안을 먼저 제시하고 선생님 확인을 받은 뒤/);
+
+  const prompt = buildFinalPrompt({ initialRequest: "발표 순서 앱", answers: { output: "앱", scope: "핵심만" }, conversationTurns: [] });
+  assert.match(prompt, /- 이번 범위: 핵심만/);
+  assert.match(prompt, /- 우선순위: 아직 정하지 않음 \(개발 AI가 추천안 제시\)/);
+  assert.ok(prompt.indexOf("[범위]") < prompt.indexOf("[상세 작성 조건]"));
 });

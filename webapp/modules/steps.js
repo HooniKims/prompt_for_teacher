@@ -121,12 +121,63 @@ export const steps = [
   }
 ];
 
+// 기본 10개 확인이 끝난 뒤, AI가 추천안을 먼저 제시하고 선생님은 고르기만 하면 되는 마무리 항목.
+export const wrapUpSteps = [
+  {
+    key: "scope",
+    title: "이번에 만들 범위",
+    shortTitle: "범위",
+    phase: "wrapup",
+    question: "이번에는 여기까지만 만드는 게 좋겠어요. 어떤가요?",
+    recommendHint: "지금까지 대화에서 나온 기능 중 꼭 필요한 것만 남기고, 이번에는 만들지 않을 기능을 분명히 적는다. 예: \"순서 뽑기, 결과 화면, 다시 뽑기까지만. 출석 관리와 점수 기록은 이번엔 만들지 않음\"",
+    options: [
+      { id: "A", label: "추천안대로 할게요: 핵심 기능만 먼저 만들고 나머지는 다음에 합니다." },
+      { id: "B", label: "조금 더 넣고 싶어요. 아래에 적을게요." },
+      { id: "C", label: "아직 정하지 않았습니다." }
+    ]
+  },
+  {
+    key: "priority",
+    title: "꼭 있어야 하는 것 순서",
+    shortTitle: "우선순위",
+    phase: "wrapup",
+    question: "꼭 있어야 하는 기능을 순서대로 세 가지만 정하면 이렇게 될 것 같아요. 어떤가요?",
+    recommendHint: "대화에서 나온 기능을 '반드시 → 있으면 좋음' 순서로 3개 안팎 나열한다. 첫 번째가 없으면 앱이 의미 없는 것이어야 한다.",
+    options: [
+      { id: "A", label: "추천안대로 할게요: 가장 핵심 기능부터 순서대로 만듭니다." },
+      { id: "B", label: "순서를 바꾸고 싶어요. 아래에 적을게요." },
+      { id: "C", label: "아직 정하지 않았습니다." }
+    ]
+  },
+  {
+    key: "success",
+    title: "성공했다고 볼 기준",
+    shortTitle: "성공 기준",
+    phase: "wrapup",
+    question: "성공했다고 볼 기준은 이걸로 할까요?",
+    recommendHint: "수업 장면에서 눈으로 확인할 수 있는 한 문장으로 쓴다. 숫자가 있으면 좋다. 예: \"수업 시작 1분 안에 순서가 정해지고, 학생들이 공정하다고 느끼면 성공\"",
+    options: [
+      { id: "A", label: "추천안대로 할게요: 수업에서 바로 써 보고 학생 반응으로 확인합니다." },
+      { id: "B", label: "다른 기준으로 하고 싶어요. 아래에 적을게요." },
+      { id: "C", label: "아직 정하지 않았습니다." }
+    ]
+  }
+];
+
+export const allSteps = [...steps, ...wrapUpSteps];
 export const stepKeys = steps.map((step) => step.key);
+export const wrapUpKeys = wrapUpSteps.map((step) => step.key);
+export const allStepKeys = allSteps.map((step) => step.key);
+export const RECOMMENDATION_PREFIX = /^추천안대로 할게요\s*[:：]?\s*/;
 
 export function getStepByIndex(index) {
   return Number.isInteger(index) && index >= 0 && index < steps.length ? steps[index] : null;
 }
 
 export function getStepByKey(key) {
-  return steps.find((step) => step.key === key) ?? null;
+  return allSteps.find((step) => step.key === key) ?? null;
+}
+
+export function isWrapUpKey(key) {
+  return wrapUpKeys.includes(key);
 }

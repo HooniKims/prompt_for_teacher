@@ -1,4 +1,4 @@
-import { steps, stepKeys } from "./steps.js";
+import { RECOMMENDATION_PREFIX, allStepKeys, allSteps, isWrapUpKey, steps, stepKeys, wrapUpKeys } from "./steps.js";
 
 function cloneRecord(record) {
   return record && typeof record === "object" && !Array.isArray(record) ? { ...record } : {};
@@ -49,10 +49,14 @@ function trimFact(value) {
   return text.length > MAX_FACT_LENGTH ? `${text.slice(0, MAX_FACT_LENGTH - 1)}…` : text;
 }
 
-export function mergeCapturedAnswers(answers = {}, capturedFacts = {}) {
+// 첫 요청이나 앞선 답변에서 자연스럽게 드러날 수 있는 항목. 나머지 항목은 직접 물었을 때만 채운다.
+export const IMPLICIT_FACT_KEYS = new Set(["output", "useScene", "context", "safety", "externalService"]);
+
+export function mergeCapturedAnswers(answers = {}, capturedFacts = {}, { allowedKeys = IMPLICIT_FACT_KEYS } = {}) {
   if (!capturedFacts || typeof capturedFacts !== "object") return { ...(answers ?? {}) };
   const next = { ...(answers ?? {}) };
-  stepKeys.forEach((key) => {
+  allStepKeys.forEach((key) => {
+    if (allowedKeys && !allowedKeys.has(key)) return;
     if (typeof next[key] === "string" && next[key].trim()) return;
     const fact = trimFact(capturedFacts[key]);
     if (!fact) return;
@@ -71,6 +75,21 @@ export function answeredStepCount(state) {
 export function unansweredSteps(state) {
   const answers = state?.answers ?? {};
   return steps.filter((step) => !(typeof answers[step.key] === "string" && answers[step.key].trim()));
+}
+
+export function answeredWrapUpCount(state) {
+  const answers = state?.answers ?? {};
+  return wrapUpKeys.filter((key) => typeof answers[key] === "string" && answers[key].trim()).length;
+}
+
+export function unansweredWrapUpSteps(state) {
+  const answers = state?.answers ?? {};
+  return allSteps.filter((step) => step.phase === "wrapup" && !(typeof answers[step.key] === "string" && answers[step.key].trim()));
+}
+
+function cleanAnswerForKey(key, text) {
+  const cleaned = isWrapUpKey(key) ? String(text).replace(RECOMMENDATION_PREFIX, "") : String(text);
+  return trimFact(cleaned);
 }
 
 export function appendAssistantMessage(state, text, options = []) {
@@ -154,8 +173,12 @@ export function completionMessage(state) {
   const answered = answeredStepCount(state);
   const total = steps.length;
   const missing = unansweredSteps(state).map((step) => step.shortTitle || step.title);
+  const wrapUpDone = answeredWrapUpCount(state);
+  const wrapUpLine = wrapUpDone >= wrapUpKeys.length
+    ? " 범위, 우선순위, 성공 기준도 정했습니다."
+    : ` 범위·우선순위·성공 기준 중 ${wrapUpKeys.length - wrapUpDone}개는 정하지 않아, 개발 AI가 추천안을 먼저 제시하고 선생님 확인을 받도록 프롬프트에 적었습니다.`;
   const headline = answered >= total
-    ? `${total}단계 확인이 끝났습니다.`
+    ? `${total}단계 확인이 끝났습니다.${wrapUpLine}`
     : `${total}개 항목 중 ${answered}개를 확인한 내용으로 프롬프트를 만들었습니다.`;
   const missingLine = missing.length && answered < total
     ? `\n아직 확인하지 않은 항목: ${missing.join(", ")}. 필요하면 아래 입력창에 적어주시면 반영합니다.`
@@ -255,7 +278,7 @@ export function recordConversationAnswer(state, answerText, option = null) {
   const text = option?.label ? option.label : normalizeText(answerText);
   const pendingStepKey = normalizeText(state.pendingStepKey);
   const answers = pendingStepKey && !(state.answers ?? {})[pendingStepKey]
-    ? { ...(state.answers ?? {}), [pendingStepKey]: trimFact(text) }
+    ? { ...(state.answers ?? {}), [pendingStepKey]: cleanAnswerForKey(pendingStepKey, text) }
     : state.answers;
   const answerMeta = pendingStepKey && option
     ? { ...(state.answerMeta ?? {}), [pendingStepKey]: { ...option } }

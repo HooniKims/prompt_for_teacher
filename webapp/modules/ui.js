@@ -185,7 +185,10 @@ function renderMessages(elements, viewModel, previousCount) {
 
       const hint = document.createElement("p");
       hint.className = "options-hint";
-      hint.textContent = "위에서 하나를 고르거나, 아래 입력창에 직접 적어도 됩니다. 글자 A, B, C만 보내도 됩니다.";
+      const isWrapUp = (viewModel.wrapUpSteps ?? []).some((step) => step.key === (state.pendingStepKey || ""));
+      hint.textContent = isWrapUp
+        ? "A는 AI 추천안입니다. 그대로 써도 되고, 고치고 싶은 내용을 아래에 직접 적어도 됩니다."
+        : "위에서 하나를 고르거나, 아래 입력창에 직접 적어도 됩니다. 글자 A, B, C만 보내도 됩니다.";
 
       article.append(options, hint);
     }
@@ -246,21 +249,30 @@ function answeredKeysOf(state) {
 
 function renderHistory(elements, viewModel) {
   const { state, steps } = viewModel;
+  const wrapUpSteps = viewModel.wrapUpSteps ?? [];
   elements.stepHistory.innerHTML = "";
   const answeredKeys = answeredKeysOf(state);
-  const completedCount = answeredKeys.size;
+  const completedCount = steps.filter((step) => answeredKeys.has(step.key)).length;
+  const allSteps = [...steps, ...wrapUpSteps];
   const pendingKey = state.pendingStepKey || "";
-  const firstUnansweredIndex = steps.findIndex((step) => !answeredKeys.has(step.key));
+  const firstUnansweredIndex = allSteps.findIndex((step) => !answeredKeys.has(step.key));
   const currentIndex = state.completed || !state.initialRequest
     ? -1
-    : pendingKey && steps.some((step) => step.key === pendingKey)
-      ? steps.findIndex((step) => step.key === pendingKey)
+    : pendingKey && allSteps.some((step) => step.key === pendingKey)
+      ? allSteps.findIndex((step) => step.key === pendingKey)
       : firstUnansweredIndex;
   elements.progressBadge.textContent = `${completedCount} / ${steps.length}`;
 
-  steps.forEach((step, index) => {
+  allSteps.forEach((step, index) => {
+    if (index === steps.length) {
+      const divider = document.createElement("li");
+      divider.className = "history-divider";
+      divider.setAttribute("aria-hidden", "true");
+      divider.textContent = "마무리 3개 · 추천안만 고르면 됩니다";
+      elements.stepHistory.append(divider);
+    }
     const item = document.createElement("li");
-    item.className = "history-item";
+    item.className = step.phase === "wrapup" ? "history-item is-wrapup" : "history-item";
     const done = answeredKeys.has(step.key);
     item.classList.toggle("is-done", done);
     item.classList.toggle("is-current", index === currentIndex);
@@ -312,7 +324,7 @@ function renderProgressSummary(elements, viewModel) {
   request.append(requestTerm, requestValue);
   elements.progressSummaryList.append(request);
 
-  steps.forEach((step) => {
+  [...steps, ...(viewModel.wrapUpSteps ?? [])].forEach((step) => {
     const row = document.createElement("div");
     const done = answeredKeys.has(step.key);
     row.className = done ? "progress-row is-done" : "progress-row";
@@ -464,6 +476,8 @@ function renderInput(elements, viewModel) {
   const awaiting = state.isAwaitingAi;
   const started = Boolean(state.initialRequest);
   const hasOptions = Boolean(state.messages.at(-1)?.options?.length) && !state.completed;
+  const wrapUpKeys = new Set((viewModel.wrapUpSteps ?? []).map((step) => step.key));
+  const askingWrapUp = wrapUpKeys.has(state.pendingStepKey || "");
   elements.chatPanel?.classList.toggle("has-started", started);
   elements.messageInput.disabled = blocked || awaiting;
   if (elements.sendButton) elements.sendButton.disabled = blocked || awaiting;
@@ -489,6 +503,9 @@ function renderInput(elements, viewModel) {
   } else if (state.completed) {
     placeholder = "예: 더 짧게, 말투를 부드럽게, 학생 이름은 빼주세요";
     hint = "고치고 싶은 부분을 적으면 오른쪽 프롬프트를 다시 만듭니다.";
+  } else if (hasOptions && askingWrapUp) {
+    placeholder = "A를 고르면 추천안대로 갑니다. 고치고 싶으면 직접 적어주세요.";
+    hint = "AI가 대화 내용으로 추천안을 만들었습니다. 그대로 써도 되고, 원하는 대로 고쳐 적어도 됩니다.";
   } else if (hasOptions) {
     placeholder = "A, B, C 중 하나를 고르거나 직접 요청사항을 입력하세요.";
     hint = "";

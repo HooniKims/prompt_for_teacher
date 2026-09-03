@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  chooseNextStepKey,
   buildFinalPromptMessages,
   buildNextQuestionMessages,
   buildSegmentedFinalPromptMessages,
@@ -46,7 +47,7 @@ test("buildNextQuestionMessages includes natural regulation-informed service que
   assert.match(content, /이용약관/);
   assert.match(content, /별도의 질문으로 만들지 않는다/);
   assert.match(content, /선생님에게 묻지 않는다/);
-  assert.match(content, /10개 항목이 모두 채워지면 바로 final_prompt를 반환한다/);
+  assert.match(content, /마무리 3개\(범위, 우선순위, 성공 기준\)를 추천안과 함께 확인하고, 그 뒤 바로 final_prompt를 반환한다/);
   assert.match(content, /최대 2번까지만/);
 });
 
@@ -60,8 +61,18 @@ test("buildNextQuestionMessages tells the model which checklist items are still 
 
   const full = buildNextQuestionMessages({ seed: "발표 순서 앱", turns: [], answers: Object.fromEntries(["output","useScene","context","goal","teacherJudgment","sourceMaterial","safety","externalService","format","quality"].map((key) => [key, "확인"])) })
     .map((message) => message.content).join("\n");
-  assert.match(full, /10개 항목이 모두 확인되었다/);
-  assert.match(full, /지금 final_prompt_ready를 반환한다/);
+  assert.match(full, /기본 10개 항목이 모두 확인되었다/);
+  assert.match(full, /남은 마무리 항목: scope: 범위, priority: 우선순위, success: 성공 기준/);
+
+  const everything = buildNextQuestionMessages({ seed: "발표 순서 앱", turns: [], answers: Object.fromEntries([...["output","useScene","context","goal","teacherJudgment","sourceMaterial","safety","externalService","format","quality"], "scope", "priority", "success"].map((key) => [key, "확인"])) })
+    .map((message) => message.content).join("\n");
+  assert.match(everything, /지금 final_prompt_ready를 반환한다/);
+
+  const wrapUp = buildNextQuestionMessages({ seed: "발표 순서 앱", turns: [{ role: "user", text: "네" }], answers: Object.fromEntries(["output","useScene","context","goal","teacherJudgment","sourceMaterial","safety","externalService","format","quality"].map((key) => [key, "확인"])), nextStepKey: "scope" })
+    .map((message) => message.content).join("\n");
+  assert.match(wrapUp, /이번에 물을 항목 \(지정됨\): scope: 범위/);
+  assert.match(wrapUp, /추천안 제시형/);
+  assert.match(wrapUp, /suggestedOptions 첫 번째는 반드시 "추천안대로 할게요: "/);
 });
 
 test("buildNextQuestionMessages can switch to thorough grill-style checks", () => {
@@ -209,4 +220,37 @@ test("parsePlannerResponse recovers malformed final prompt JSON from models", ()
   assert.match(parsed.value.finalPrompt, /첫 줄/);
   assert.match(parsed.value.finalPrompt, /기능별 모듈/);
   assert.match(parsed.value.referenceNotes, /개인정보보호 고려할 점/);
+});
+
+test("chooseNextStepKey follows the checklist order and pulls privacy/storage forward for apps", () => {
+  assert.equal(chooseNextStepKey({ initialRequest: "학급 규칙 안내문", answers: {}, conversationTurns: [] }), "output");
+  assert.equal(chooseNextStepKey({ initialRequest: "학급 규칙 안내문", answers: { output: "안내문", useScene: "수업" }, conversationTurns: [] }), "context");
+
+  const appAfterTwoQuestions = {
+    initialRequest: "발표 순서 앱",
+    answers: { output: "발표 순서 웹앱", useScene: "수업 중 학생 사용" },
+    conversationTurns: [{ role: "user", text: "발표 순서 앱" }, { role: "assistant", text: "q1" }, { role: "user", text: "a1" }, { role: "assistant", text: "q2" }, { role: "user", text: "a2" }]
+  };
+  assert.equal(chooseNextStepKey(appAfterTwoQuestions), "safety");
+  assert.equal(chooseNextStepKey({ ...appAfterTwoQuestions, answers: { ...appAfterTwoQuestions.answers, safety: "없음" } }), "externalService");
+  assert.equal(chooseNextStepKey({ ...appAfterTwoQuestions, answers: { ...appAfterTwoQuestions.answers, safety: "없음", externalService: "저장 없음" } }), "context");
+  const coreDone = Object.fromEntries(["output","useScene","context","goal","teacherJudgment","sourceMaterial","safety","externalService","format","quality"].map((key) => [key, "v"]));
+  assert.equal(chooseNextStepKey({ initialRequest: "앱", answers: coreDone, conversationTurns: [] }), "scope");
+  assert.equal(chooseNextStepKey({ initialRequest: "앱", answers: { ...coreDone, scope: "핵심만" }, conversationTurns: [] }), "priority");
+  assert.equal(chooseNextStepKey({ initialRequest: "앱", answers: { ...coreDone, scope: "핵심만", priority: "뽑기", success: "1분" }, conversationTurns: [] }), "");
+});
+
+test("buildNextQuestionMessages pins the next item and asks the model to bridge from the last answer", () => {
+  const content = buildNextQuestionMessages({
+    seed: "발표 순서 앱",
+    turns: [{ role: "user", text: "발표 순서 앱" }, { role: "assistant", text: "학생이 직접 쓰나요?" }, { role: "user", text: "네, 수업 중에 학생들이 직접 씁니다." }],
+    answers: { output: "발표 순서 앱", useScene: "수업 중 학생 사용" },
+    nextStepKey: "goal"
+  }).map((message) => message.content).join("\n");
+  assert.match(content, /이번에 물을 항목 \(지정됨\): goal: 목표/);
+  assert.match(content, /이 항목만 묻는다/);
+  assert.match(content, /직전 답변: 네, 수업 중에 학생들이 직접 씁니다\./);
+  assert.match(content, /직전 답변의 핵심을 짧게 받아서/);
+  assert.match(content, /대화 흐름 규칙/);
+  assert.match(content, /같은 항목을 두 번 연속 묻지 않는다/);
 });

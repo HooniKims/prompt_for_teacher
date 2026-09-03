@@ -5,6 +5,7 @@ import { buildReferenceNotes } from "../webapp/modules/referenceNotes.js";
 import {
   advanceStep,
   answeredStepCount,
+  answeredWrapUpCount,
   appendAiQuestion,
   appendAssistantMessage,
   appendUserMessage,
@@ -89,9 +90,13 @@ test("appendAiQuestion merges captured facts into step answers and tracks the pe
   });
   assert.equal(asked.answers.output, "발표 순서 정하는 웹앱");
   assert.equal(asked.answers.bogus, undefined);
-  const placeholderFacts = appendAiQuestion(asked, { question: "q", capturedFacts: { teacherJudgment: "선생님이 정할 부분(아직 미확인)", output: "다른 값" } });
-  assert.equal(placeholderFacts.answers.teacherJudgment, undefined);
+  const placeholderFacts = appendAiQuestion(asked, { question: "q", capturedFacts: { safety: "선생님이 정할 부분(아직 미확인)", output: "다른 값" } });
+  assert.equal(placeholderFacts.answers.safety, undefined);
   assert.equal(placeholderFacts.answers.output, "발표 순서 정하는 웹앱");
+  const abstractFacts = appendAiQuestion(asked, { question: "q", capturedFacts: { teacherJudgment: "애니메이션 효과", quality: "공정성", safety: "이름은 적지 않음" } });
+  assert.equal(abstractFacts.answers.teacherJudgment, undefined, "abstract items are only filled when asked directly");
+  assert.equal(abstractFacts.answers.quality, undefined);
+  assert.equal(abstractFacts.answers.safety, "이름은 적지 않음");
   assert.equal(asked.pendingStepKey, "useScene");
   const answered = recordConversationAnswer(asked, "학생이 직접 씁니다", null);
   assert.equal(answered.answers.useScene, "학생이 직접 씁니다");
@@ -172,4 +177,13 @@ test("buildReferenceNotes always includes strict privacy and learning software p
   assert.match(notes, /학습지원 소프트웨어 심의 관련 고려할 점/);
   assert.match(notes, /개인정보 수집이 전혀 없는 단순 웹앱/);
   assert.match(notes, /학생 참여형 과제나 수업용으로 용도가 바뀌고 개인정보를 수집/);
+});
+
+test("wrap-up answers drop the recommendation prefix and count separately from the core ten", () => {
+  const started = startRequest(createInitialState(), "발표 순서 앱");
+  const asked = appendAiQuestion(started, { question: "이번에는 여기까지만 만들까요?", stepKey: "scope" });
+  const answered = recordConversationAnswer(asked, "", { id: "A", label: "추천안대로 할게요: 순서 뽑기와 결과 화면까지만 만듭니다." });
+  assert.equal(answered.answers.scope, "순서 뽑기와 결과 화면까지만 만듭니다.");
+  assert.equal(answeredStepCount(answered), 0);
+  assert.equal(answeredWrapUpCount(answered), 1);
 });

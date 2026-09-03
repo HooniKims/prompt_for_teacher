@@ -1567,6 +1567,19 @@ body {
   }
 }
 
+.history-divider {
+  margin: var(--spacing-8) 0 0;
+  padding: var(--spacing-4) 0;
+  list-style: none;
+  color: var(--theme-subtle);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.history-item.is-wrapup .history-index {
+  border-style: dashed;
+}
+
 .brand-motto {
   margin: var(--spacing-8) 0 0;
   color: var(--theme-subtle);

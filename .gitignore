@@ -16,3 +16,6 @@ test-results/
 .codex-*.png
 handoff.md
 webapp/assets/favicon-source.png
+
+# Local Netlify folder
+.netlify

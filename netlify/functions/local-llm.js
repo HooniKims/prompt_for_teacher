@@ -1,7 +1,7 @@
 import { emptyResponse, jsonResponse, responseFromFetch, upstreamPath } from "./proxy-utils.js";
 
 export function localLlmOrigin() {
-  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "https://lm.alluser.site";
+  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "https://lm.alluser.kr";
   return raw.trim().replace(/\/+$/g, "").replace(/\/v1$/i, "");
 }
 

@@ -158,7 +158,7 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.4-nano
 
 # LM Studio를 배포 환경에서 함께 쓸 때
-LMSTUDIO_API_URL=https://lm.alluser.site
+LMSTUDIO_API_URL=https://lm.alluser.kr
 LMSTUDIO_API_KEY=필요한 경우에만 입력
 LMSTUDIO_GEMMA_E4B_MODEL=google/gemma-4-e4b
 LMSTUDIO_GEMMA_26B_MODEL=gemma-4-26b-a4b-it
@@ -167,7 +167,7 @@ LMSTUDIO_GEMMA_26B_MODEL=gemma-4-26b-a4b-it
 호환 이름:
 
 ```text
-LOCAL_LLM_ORIGIN=https://lm.alluser.site
+LOCAL_LLM_ORIGIN=https://lm.alluser.kr
 ```
 
 `LMSTUDIO_API_URL`과 `LOCAL_LLM_ORIGIN`이 둘 다 있으면 `LMSTUDIO_API_URL`을 우선 사용한다.

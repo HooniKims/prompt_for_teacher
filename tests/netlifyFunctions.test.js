@@ -68,11 +68,11 @@ test("LM Studio Netlify function sends upstream-required headers", () => {
   process.env.LMSTUDIO_API_KEY = "test-lmstudio-key";
 
   try {
-    const headers = localLlmHeaders({ headers: { "content-type": "application/json" } }, "https://lm.alluser.site");
+    const headers = localLlmHeaders({ headers: { "content-type": "application/json" } }, "https://lm.alluser.kr");
 
     assert.equal(headers["content-type"], "application/json");
-    assert.equal(headers.origin, "https://lm.alluser.site");
-    assert.equal(headers.referer, "https://lm.alluser.site/");
+    assert.equal(headers.origin, "https://lm.alluser.kr");
+    assert.equal(headers.referer, "https://lm.alluser.kr/");
     assert.equal(headers["x-api-key"], "test-lmstudio-key");
     assert.equal(headers.authorization, undefined);
   } finally {

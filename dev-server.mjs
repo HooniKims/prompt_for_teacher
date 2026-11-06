@@ -48,7 +48,7 @@ function send(response, status, body, headers = {}) {
 }
 
 function localLlmOrigin() {
-  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "https://lm.alluser.site";
+  const raw = process.env.LMSTUDIO_API_URL || process.env.LOCAL_LLM_ORIGIN || "https://lm.alluser.kr";
   return raw.trim().replace(/\/+$/g, "").replace(/\/v1$/i, "");
 }
 
